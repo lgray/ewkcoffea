@@ -6,8 +6,10 @@ import time
 import cloudpickle
 import gzip
 import os
+import dask
 from coffea import processor
 from coffea.nanoevents import NanoAODSchema
+from coffea.nanoevents import NanoEventsFactory
 
 import topcoffea.modules.remote_environment as remote_environment
 
@@ -306,6 +308,29 @@ if __name__ == '__main__':
     # Run the processor and get the output
     tstart = time.time()
 
+    ### coffea2023 ###
+
+    # Create dict of events objects
+    print("Number of datasets:",len(flist))
+    events_dict = {}
+    for name, fpaths in flist.items():
+        events_dict[name] = NanoEventsFactory.from_root(
+            {fpath: "/Events" for fpath in fpaths},
+            schemaclass=NanoAODSchema,
+            metadata={"dataset": name},
+        ).events()
+
+    # Get the histograms
+    histos_to_compute = {}
+    for json_name in flist.keys():
+        print(f"Getting histos for {json_name}")
+        histos_to_compute[json_name] = processor_instance.process(events_dict[json_name]) # Passing events object
+        #histos_to_compute[json_name] = processor_instance.process(json_name,flist[json_name]) # Passing root file list
+
+    print("Compute histos")
+    output = dask.compute(histos_to_compute)
+
+    '''
     if executor == "futures":
         exec_instance = processor.FuturesExecutor(workers=nworkers)
         runner = processor.Runner(exec_instance, schema=NanoAODSchema, chunksize=chunksize, maxchunks=nchunks)
@@ -315,8 +340,9 @@ if __name__ == '__main__':
     elif executor ==  "work_queue":
         executor = processor.WorkQueueExecutor(**executor_args)
         runner = processor.Runner(executor, schema=NanoAODSchema, chunksize=chunksize, maxchunks=nchunks, skipbadfiles=False, xrootdtimeout=180)
+    '''
 
-    output = runner(flist, treename, processor_instance)
+    #output = runner(flist, treename, processor_instance)
 
     dt = time.time() - tstart
 

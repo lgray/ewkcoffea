@@ -27,6 +27,7 @@ get_tc_param = GetParam(topcoffea_path("params/params.json"))
 get_ec_param = GetParam(ewkcoffea_path("params/params.json"))
 
 import dask_awkward as dak
+import hist.dask as hda
 
 
 
@@ -137,19 +138,20 @@ class AnalysisProcessor(processor.ProcessorABC):
         return self._columns
 
     # Main function: run on a given dataset
-    #def process(self, events):
-    def process(self, dataset, fpaths):
+    def process(self, events):
+    #def process(self, dataset, fpaths):
 
         # Dataset parameters
-        #dataset = events.metadata["dataset"]
+        dataset = events.metadata["dataset"]
 
-        from coffea.nanoevents import NanoEventsFactory
-        from coffea.nanoevents import NanoAODSchema
-        events = NanoEventsFactory.from_root(
-            {fpath: "/Events" for fpath in fpaths},
-            schemaclass=NanoAODSchema,
-            metadata={"dataset": dataset},
-        ).events()
+        # If we pass the root files instead of events object
+        #from coffea.nanoevents import NanoEventsFactory
+        #from coffea.nanoevents import NanoAODSchema
+        #events = NanoEventsFactory.from_root(
+        #    {fpath: "/Events" for fpath in fpaths},
+        #    schemaclass=NanoAODSchema,
+        #    metadata={"dataset": dataset},
+        #).events()
 
         isData             = self._samples[dataset]["isData"]
         histAxisName       = self._samples[dataset]["histAxisName"]
@@ -569,9 +571,9 @@ class AnalysisProcessor(processor.ProcessorABC):
 
             # lb pairs (i.e. always one lep, one bjet)
             bjets = goodJets[isBtagJetsLoose]
-            lb_pairs = ak.cartesian({"l":l_wwz_t,"j":bjets})
-            mlb_min = ak.min((lb_pairs["l"] + lb_pairs["j"]).mass,axis=-1)
-            mlb_max = ak.max((lb_pairs["l"] + lb_pairs["j"]).mass,axis=-1)
+            #lb_pairs = ak.cartesian({"l":l_wwz_t,"j":bjets})
+            #mlb_min = ak.min((lb_pairs["l"] + lb_pairs["j"]).mass,axis=-1)
+            #mlb_max = ak.max((lb_pairs["l"] + lb_pairs["j"]).mass,axis=-1)
 
             # Get BDT values
             bdt_vars = [
@@ -593,10 +595,14 @@ class AnalysisProcessor(processor.ProcessorABC):
                 ak.fill_none(w_lep1.pt,-9999),
             ]
 
-            bdt_of_wwz_raw = es_ec.eval_sig_bdt(events,bdt_vars,ewkcoffea_path("data/wwz_zh_bdt/of_WWZ.json"))
-            bdt_sf_wwz_raw = es_ec.eval_sig_bdt(events,bdt_vars,ewkcoffea_path("data/wwz_zh_bdt/sf_WWZ.json"))
-            bdt_of_zh_raw  = es_ec.eval_sig_bdt(events,bdt_vars,ewkcoffea_path("data/wwz_zh_bdt/of_ZH.json"))
-            bdt_sf_zh_raw  = es_ec.eval_sig_bdt(events,bdt_vars,ewkcoffea_path("data/wwz_zh_bdt/sf_ZH.json"))
+            #bdt_of_wwz_raw = es_ec.eval_sig_bdt(events,bdt_vars,ewkcoffea_path("data/wwz_zh_bdt/of_WWZ.json"))
+            #bdt_sf_wwz_raw = es_ec.eval_sig_bdt(events,bdt_vars,ewkcoffea_path("data/wwz_zh_bdt/sf_WWZ.json"))
+            #bdt_of_zh_raw  = es_ec.eval_sig_bdt(events,bdt_vars,ewkcoffea_path("data/wwz_zh_bdt/of_ZH.json"))
+            #bdt_sf_zh_raw  = es_ec.eval_sig_bdt(events,bdt_vars,ewkcoffea_path("data/wwz_zh_bdt/sf_ZH.json"))
+            bdt_of_wwz_raw = 0 # TODO: Update xgb for coffea23
+            bdt_sf_wwz_raw = 0 # TODO: Update xgb for coffea23
+            bdt_of_zh_raw  = 0 # TODO: Update xgb for coffea23
+            bdt_sf_zh_raw  = 0 # TODO: Update xgb for coffea23
             # Match TMVA's scaling https://root.cern.ch/doc/v606/MethodBDT_8cxx_source.html
             bdt_of_wwz = (2.0*((1.0+math.e**(-2*bdt_of_wwz_raw))**(-1))) - 1.0
             bdt_sf_wwz = (2.0*((1.0+math.e**(-2*bdt_sf_wwz_raw))**(-1))) - 1.0
@@ -665,8 +671,8 @@ class AnalysisProcessor(processor.ProcessorABC):
                 "mll_min_afos" : mll_min_afos,
                 "mll_min_sfos" : mll_min_sfos,
 
-                "mlb_min" : mlb_min,
-                "mlb_max" : mlb_max,
+                #"mlb_min" : mlb_min,
+                #"mlb_max" : mlb_max,
 
                 "bdt_of_wwz_raw": bdt_of_wwz_raw,
                 "bdt_sf_wwz_raw": bdt_sf_wwz_raw,
@@ -742,9 +748,10 @@ class AnalysisProcessor(processor.ProcessorABC):
             for dense_axis_name, dense_axis_vals in dense_variables_dict.items():
                 #print("\ndense_axis_name,vals",dense_axis_name)
                 #print("dense_axis_name,vals",dense_axis_vals)
+                if "njets" not in dense_axis_name: continue
 
                 # Create the hist for this dense axis variable
-                hout[dense_axis_name] = hist.Hist(
+                hout[dense_axis_name] = hda.Hist(
                     hist.axis.StrCategory([], growth=True, name="process", label="process"),
                     hist.axis.StrCategory([], growth=True, name="category", label="category"),
                     self._dense_axes_dict[dense_axis_name],
