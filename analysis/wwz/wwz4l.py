@@ -26,6 +26,8 @@ from topcoffea.modules.get_param_from_jsons import GetParam
 get_tc_param = GetParam(topcoffea_path("params/params.json"))
 get_ec_param = GetParam(ewkcoffea_path("params/params.json"))
 
+import dask_awkward as dak
+
 
 
 class AnalysisProcessor(processor.ProcessorABC):
@@ -135,10 +137,19 @@ class AnalysisProcessor(processor.ProcessorABC):
         return self._columns
 
     # Main function: run on a given dataset
-    def process(self, events):
+    #def process(self, events):
+    def process(self, dataset, fpaths):
 
         # Dataset parameters
-        dataset = events.metadata["dataset"]
+        #dataset = events.metadata["dataset"]
+
+        from coffea.nanoevents import NanoEventsFactory
+        from coffea.nanoevents import NanoAODSchema
+        events = NanoEventsFactory.from_root(
+            {fpath: "/Events" for fpath in fpaths},
+            schemaclass=NanoAODSchema,
+            metadata={"dataset": dataset},
+        ).events()
 
         isData             = self._samples[dataset]["isData"]
         histAxisName       = self._samples[dataset]["histAxisName"]
@@ -253,12 +264,14 @@ class AnalysisProcessor(processor.ProcessorABC):
         #'''
         # Do the object selection for the WWZ eleectrons
         ele_presl_mask = os_ec.is_presel_wwz_ele(ele,tight=True)
-        ele["topmva"] = os_ec.get_topmva_score_ele(events, year)
+        #ele["topmva"] = os_ec.get_topmva_score_ele(events, year)
+        ele["topmva"] = 0 # TODO: Update xgb stuff for coffea2023
         ele["is_tight_lep_for_wwz"] = ((ele.topmva > get_tc_param("topmva_wp_t_e")) & ele_presl_mask)
 
         # Do the object selection for the WWZ muons
         mu_presl_mask = os_ec.is_presel_wwz_mu(mu)
-        mu["topmva"] = os_ec.get_topmva_score_mu(events, year)
+        #mu["topmva"] = os_ec.get_topmva_score_mu(events, year)
+        mu["topmva"] = 0 # TODO: Update xgb stuff for coffea2023
         mu["is_tight_lep_for_wwz"] = ((mu.topmva > get_tc_param("topmva_wp_t_m")) & mu_presl_mask)
 
         # Get tight leptons for WWZ selection
@@ -305,7 +318,7 @@ class AnalysisProcessor(processor.ProcessorABC):
         # We only calculate these values if not isData
         # Note: add() will generally modify up/down weights, so if these are needed for any reason after this point, we should instead pass copies to add()
         # Note: Here we will to the weights object the SFs that do not depend on any of the forthcoming loops
-        weights_obj_base = coffea.analysis_tools.Weights(len(events),storeIndividual=True)
+        weights_obj_base = coffea.analysis_tools.Weights(None,storeIndividual=True)
         if not isData:
             genw = events["genWeight"]
 

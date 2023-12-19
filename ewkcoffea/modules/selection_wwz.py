@@ -150,7 +150,7 @@ def trg_matching(events,year):
     if year == "2016APV": year = "2016"
 
     # Initialize return array to be True array with same shape as events
-    ret_arr = ak.zeros_like(np.array(events.event), dtype=bool)
+    ret_arr = ak.zeros_like(events.event, dtype=bool)
 
     # Get the leptons, sort and pad
     el = events.l_wwz_t[abs(events.l_wwz_t.pdgId)==11]
@@ -176,7 +176,7 @@ def trg_matching(events,year):
         # Build the return mask
         # The return mask started from an array of False
         # The way an event becomes True is if it passes a trigger AND passes the offline pt cuts associated with that trg
-        false_arr = ak.zeros_like(np.array(events.event), dtype=bool) # False array with same shape as events
+        false_arr = ak.zeros_like(events.event, dtype=bool) # False array with same shape as events
         ret_arr = ret_arr | ak.where(trg_passes,offline_cut,false_arr)
 
     return ret_arr
@@ -324,13 +324,14 @@ def attach_wwz_preselection_mask(events,lep_collection):
 def get_mt2(w_lep0,w_lep1,met):
 
     # Construct misspart vector, as implimented in c++: https://github.com/sgnoohc/mt2example/blob/main/main.cc#L7 (but pass 0 not pi/2 for met eta)
-    nevents = len(np.zeros_like(met))
+    misspart_mass = ak.zeros_like(met.pt) # Just 0
+    misspart_eta  = ak.zeros_like(met.pt) # Just 0
     misspart = ak.zip(
         {
             "pt": met.pt,
-            "eta": 0,
+            "eta": misspart_eta,
             "phi": met.phi,
-            "mass": np.full(nevents, 0),
+            "mass": misspart_mass,
         },
         with_name="PtEtaPhiMLorentzVector",
         behavior=vector.behavior,
@@ -353,7 +354,7 @@ def get_mt2(w_lep0,w_lep1,met):
         mass_l0, w_lep0_boosted.px, w_lep0_boosted.py,
         mass_l1, w_lep1_boosted.px, w_lep1_boosted.py,
         misspart_boosted.px, misspart_boosted.py,
-        np.zeros_like(met.pt), np.zeros_like(met.pt),
+        ak.zeros_like(met.pt), ak.zeros_like(met.pt),
     )
 
     return mt2_var
