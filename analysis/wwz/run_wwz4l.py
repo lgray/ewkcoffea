@@ -320,13 +320,9 @@ if __name__ == '__main__':
             metadata={"dataset": name},
         ).events()
 
-    # Get the histograms
-    histos_to_compute = {}
-    for json_name in flist.keys():
-        print(f"Getting histos for {json_name}")
-        histos_to_compute[json_name] = processor_instance.process(events_dict[json_name]) # Passing events object
-        #histos_to_compute[json_name] = processor_instance.process(json_name,flist[json_name]) # Passing root file list
-
+    # Get and compute the histograms
+    print("Get histos")
+    histos_to_compute = processor_instance.process(events_dict)
     print("Compute histos")
     output = dask.compute(histos_to_compute)
 
