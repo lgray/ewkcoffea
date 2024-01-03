@@ -10,6 +10,7 @@ import dask
 from coffea import processor
 from coffea.nanoevents import NanoAODSchema
 from coffea.nanoevents import NanoEventsFactory
+from coffea.dataset_tools import apply_processor
 
 import topcoffea.modules.remote_environment as remote_environment
 
@@ -321,10 +322,14 @@ if __name__ == '__main__':
         ).events()
 
     # Get and compute the histograms
-    print("Get histos")
-    histos_to_compute = processor_instance.process(events_dict)
+    histos_to_compute = {}
+    for json_name in flist.keys():
+        print(f"Getting histos for {json_name}")
+        histos_to_compute[json_name] = processor_instance.process(events_dict[json_name]) # Passing events object
+        #histos_to_compute[json_name] = processor_instance.process(json_name,flist[json_name]) # Passing root file list
+
     print("Compute histos")
-    output = dask.compute(histos_to_compute)
+    output = dask.compute(histos_to_compute)[0] # Output of dask.compute is a tuple
 
     '''
     if executor == "futures":
