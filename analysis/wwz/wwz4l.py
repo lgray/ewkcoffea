@@ -133,10 +133,6 @@ class AnalysisProcessor(processor.ProcessorABC):
         self._skip_control_regions = skip_control_regions # Whether to skip the CR categories
 
 
-    @property
-    def columns(self):
-        return self._columns
-
     # Main function: run on a given dataset
     def process(self, events):
     #def process(self, dataset, fpaths):
