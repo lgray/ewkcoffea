@@ -1,4 +1,3 @@
-import numpy as np
 import awkward as ak
 from mt2 import mt2
 
