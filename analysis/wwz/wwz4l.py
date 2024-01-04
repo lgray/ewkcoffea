@@ -26,7 +26,6 @@ from topcoffea.modules.get_param_from_jsons import GetParam
 get_tc_param = GetParam(topcoffea_path("params/params.json"))
 get_ec_param = GetParam(ewkcoffea_path("params/params.json"))
 
-import dask_awkward as dak
 import hist.dask as hda
 
 
