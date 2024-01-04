@@ -528,7 +528,6 @@ class AnalysisProcessor(processor.ProcessorABC):
 
             cat_dict = {
                 "lep_chan_lst" : [
-                    "all_events",
                     "sr_4l_sf_A","sr_4l_sf_B","sr_4l_sf_C","sr_4l_of_1","sr_4l_of_2","sr_4l_of_3","sr_4l_of_4",
                     "sr_4l_sf_presel", "sr_4l_of_presel",
                     "all_events","4l_presel",
@@ -746,7 +745,6 @@ class AnalysisProcessor(processor.ProcessorABC):
                 #print("dense_axis_name,vals",dense_axis_vals)
 
                 # Create the hist for this dense axis variable
-                #if dense_axis_name not in hout: # IF Looping over all datasets !!!
                 hout[dense_axis_name] = hda.Hist(
                     hist.axis.StrCategory([], growth=True, name="process", label="process"),
                     hist.axis.StrCategory([], growth=True, name="category", label="category"),
