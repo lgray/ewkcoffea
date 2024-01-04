@@ -17,6 +17,42 @@ def get_cleaned_collection(obj_collection_a,obj_collection_b,drcut=0.4):
     mask = ak.fill_none(dr>drcut,True)
     return obj_collection_b[mask]
 
+
+# Wrapper around evaluation of lep ID bdt, note returns flat
+def xgb_eval_lep_id_wrapper(feature_list,in_vals_flat_dict,model_fpath):
+
+    # From https://github.com/CoffeaTeam/coffea/blob/master/tests/test_ml_tools.py#L169-L174
+    class xgboost_test(xgboost_wrapper):
+        def prepare_awkward(self, events):
+            ak = self.get_awkward_lib(events)
+            ret = ak.concatenate(
+                [events[name][:, np.newaxis] for name in feature_list], axis=1
+            )
+            return [], dict(data=ret)
+
+    # Reshape the input array
+    # E.g. we want to go from something like this:
+    #   {
+    #       "a" : ak.Array([[1.1 ,2.1] ,[3.2]]),
+    #       "b" : ak.Array([[-1.1,-2.1],[-3.2]]),
+    #   }
+    # To something that looks like this:
+    #   input_arr  = ak.Array([
+    #       {"a": 1.1, "b": -1.1},
+    #       {"a": 2.1, "b": -2.1},
+    #       {"a": 3.1, "b": -3.1},
+    #   ])
+    input_arr = ak.zip(
+        {feat_name: in_vals_flat_dict[feat_name] for feat_name in in_vals_flat_dict.keys()}
+    )
+
+    # Get the score
+    xgb_wrap = xgboost_test(model_fpath)
+    score = xgb_wrap(input_arr)
+
+    return score
+
+
 ######### WWZ 4l analysis object selection #########
 
 # WWZ preselection for electrons
@@ -67,7 +103,7 @@ def get_topmva_score_ele(events, year):
     ele["miniPFRelIso_diff_all_chg"] = ele.miniPFRelIso_all - ele.miniPFRelIso_chg
 
     # List order comes from https://github.com/cmstas/VVVNanoLooper/blob/8a194165cdbbbee3bcf69f932d837e95a0a265e6/src/ElectronIDHelper.cc#L110-L122
-    feature_list = [
+    feature_lst = [
         "pt",
         "eta",
         "jetNDauCharged",
@@ -100,34 +136,7 @@ def get_topmva_score_ele(events, year):
        "mvaFall17V2noIso"          : ak.flatten(ele.mvaFall17V2noIso),
     }
 
-    # From https://github.com/CoffeaTeam/coffea/blob/master/tests/test_ml_tools.py#L169-L174
-    class xgboost_test(xgboost_wrapper):
-        def prepare_awkward(self, events):
-            ak = self.get_awkward_lib(events)
-            ret = ak.concatenate(
-                [events[name][:, np.newaxis] for name in feature_list], axis=1
-            )
-            return [], dict(data=ret)
-
-    # Reshape the input array
-    # E.g. we want to go from something like this:
-    #   {
-    #       "a" : ak.Array([[1.1 ,2.1] ,[3.2]]),
-    #       "b" : ak.Array([[-1.1,-2.1],[-3.2]]),
-    #   }
-    # To something that looks like this:
-    #   input_arr  = ak.Array([
-    #       {"a": 1.1, "b": -1.1},
-    #       {"a": 2.1, "b": -2.1},
-    #       {"a": 3.1, "b": -3.1},
-    #   ])
-    input_arr = ak.zip(
-        {feat_name: in_vals_flat_dict[feat_name] for feat_name in in_vals_flat_dict.keys()}
-    )
-
-    # Get the score
-    xgb_wrap = xgboost_test(model_fpath)
-    score = xgb_wrap(input_arr)
+    score = xgb_eval_lep_id_wrapper(feature_lst,in_vals_flat_dict,model_fpath)
 
     # Restore the shape (i.e. unflatten)
     counts = ak.num(ele.pt)
@@ -155,7 +164,7 @@ def get_topmva_score_mu(events, year):
     mu["miniPFRelIso_diff_all_chg"] = mu.miniPFRelIso_all - mu.miniPFRelIso_chg
 
     # Order comes from https://github.com/cmstas/VVVNanoLooper/blob/8a194165cdbbbee3bcf69f932d837e95a0a265e6/src/MuonIDHelper.cc#L102-L116
-    feature_list = [
+    feature_lst = [
         "pt",
         "eta",
         "jetNDauCharged",
@@ -188,38 +197,10 @@ def get_topmva_score_mu(events, year):
         "segmentComp"              : ak.flatten(mu.segmentComp),
     }
 
-    # From https://github.com/CoffeaTeam/coffea/blob/master/tests/test_ml_tools.py#L169-L174
-    class xgboost_test(xgboost_wrapper):
-        def prepare_awkward(self, events):
-            ak = self.get_awkward_lib(events)
-            ret = ak.concatenate(
-                [events[name][:, np.newaxis] for name in feature_list], axis=1
-            )
-            return [], dict(data=ret)
-
-    # Reshape the input array
-    # E.g. we want to go from something like this:
-    #   {
-    #       "a" : ak.Array([[1.1 ,2.1] ,[3.2]]),
-    #       "b" : ak.Array([[-1.1,-2.1],[-3.2]]),
-    #   }
-    # To something that looks like this:
-    #   input_arr  = ak.Array([
-    #       {"a": 1.1, "b": -1.1},
-    #       {"a": 2.1, "b": -2.1},
-    #       {"a": 3.1, "b": -3.1},
-    #   ])
-    input_arr = ak.zip(
-        {feat_name: in_vals_flat_dict[feat_name] for feat_name in in_vals_flat_dict.keys()}
-    )
-
-    # Get the score
-    xgb_wrap = xgboost_test(model_fpath)
-    score = xgb_wrap(input_arr)
+    score = xgb_eval_lep_id_wrapper(feature_lst,in_vals_flat_dict,model_fpath)
 
     # Restore the shape (i.e. unflatten)
     counts = ak.num(mu.pt)
     score = ak.unflatten(score,counts)
 
     return score
-
