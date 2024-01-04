@@ -166,11 +166,11 @@ if __name__ == '__main__':
                         else:
                             LoadJsonToSampleName(l, prefix)
 
-    flist = {}
+    fdict = {}
     nevts_total = 0
     for sname in samplesdict.keys():
         redirector = samplesdict[sname]['redirector']
-        flist[sname] = [(redirector+f) for f in samplesdict[sname]['files']]
+        fdict[sname] = [(redirector+f) for f in samplesdict[sname]['files']]
         samplesdict[sname]['year'] = samplesdict[sname]['year']
         samplesdict[sname]['xsec'] = float(samplesdict[sname]['xsec'])
         samplesdict[sname]['nEvents'] = int(samplesdict[sname]['nEvents'])
@@ -310,9 +310,9 @@ if __name__ == '__main__':
     ### coffea2023 ###
 
     # Create dict of events objects
-    print("Number of datasets:",len(flist))
+    print("Number of datasets:",len(fdict))
     events_dict = {}
-    for name, fpaths in flist.items():
+    for name, fpaths in fdict.items():
         events_dict[name] = NanoEventsFactory.from_root(
             {fpath: "/Events" for fpath in fpaths},
             schemaclass=NanoAODSchema,
@@ -321,10 +321,9 @@ if __name__ == '__main__':
 
     # Get and compute the histograms
     histos_to_compute = {}
-    for json_name in flist.keys():
+    for json_name in fdict.keys():
         print(f"Getting histos for {json_name}")
-        histos_to_compute[json_name] = processor_instance.process(events_dict[json_name]) # Passing events object
-        #histos_to_compute[json_name] = processor_instance.process(json_name,flist[json_name]) # Passing root file list
+        histos_to_compute[json_name] = processor_instance.process(events_dict[json_name])
 
     print("Compute histos")
     output = dask.compute(histos_to_compute)[0] # Output of dask.compute is a tuple
