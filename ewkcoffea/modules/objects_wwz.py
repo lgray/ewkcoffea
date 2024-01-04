@@ -17,7 +17,8 @@ def get_cleaned_collection(obj_collection_a,obj_collection_b,drcut=0.4):
 
 
 # Wrapper around evaluation of lep ID bdt, note returns flat
-def xgb_eval_lep_id_wrapper(feature_list,in_vals_flat_dict,model_fpath):
+# Note this could potentially go somewhere more general like topcoffea modules
+def xgb_eval_wrapper(feature_list,in_vals_flat_dict,model_fpath):
 
     # From https://github.com/CoffeaTeam/coffea/blob/master/tests/test_ml_tools.py#L169-L174
     class xgboost_test(xgboost_wrapper):
@@ -29,10 +30,11 @@ def xgb_eval_lep_id_wrapper(feature_list,in_vals_flat_dict,model_fpath):
             return [], dict(data=ret)
 
     # Reshape the input array
+    # Note that if the inputs are object level like pt, then should have already flattned before passing to this function
     # E.g. we want to go from something like this:
     #   {
-    #       "a" : ak.Array([[1.1 ,2.1] ,[3.2]]),
-    #       "b" : ak.Array([[-1.1,-2.1],[-3.2]]),
+    #       "a" : ak.Array([1.1,  2.1, 3.2]]), # E.g. could have been [[1.1,2.1] ,[3.2]] prior to flattening
+    #       "b" : ak.Array([-1.1,-2.1,-3.2]]), # E.g. could have been [[-1.1,-2.1],[-3.2]] prior to flattening
     #   }
     # To something that looks like this:
     #   input_arr  = ak.Array([
@@ -134,7 +136,7 @@ def get_topmva_score_ele(events, year):
         "mvaFall17V2noIso"          : ak.flatten(ele.mvaFall17V2noIso),
     }
 
-    score = xgb_eval_lep_id_wrapper(feature_lst,in_vals_flat_dict,model_fpath)
+    score = xgb_eval_wrapper(feature_lst,in_vals_flat_dict,model_fpath)
 
     # Restore the shape (i.e. unflatten)
     counts = ak.num(ele.pt)
@@ -195,7 +197,7 @@ def get_topmva_score_mu(events, year):
         "segmentComp"              : ak.flatten(mu.segmentComp),
     }
 
-    score = xgb_eval_lep_id_wrapper(feature_lst,in_vals_flat_dict,model_fpath)
+    score = xgb_eval_wrapper(feature_lst,in_vals_flat_dict,model_fpath)
 
     # Restore the shape (i.e. unflatten)
     counts = ak.num(mu.pt)

@@ -572,33 +572,31 @@ class AnalysisProcessor(processor.ProcessorABC):
             #mlb_max = ak.max((lb_pairs["l"] + lb_pairs["j"]).mass,axis=-1)
 
             # Get BDT values
-            bdt_vars = [
-                ak.fill_none(mll_wl0_wl1,-9999),
-                ak.fill_none(dphi_4l_met,-9999),
-                ak.fill_none(dphi_zleps_met,-9999),
-                ak.fill_none(dphi_wleps_met,-9999),
-                ak.fill_none(dr_wl0_wl1,-9999),
-                ak.fill_none(dr_zl0_zl1,-9999),
-                ak.fill_none(dr_wleps_zleps,-9999),
-                ak.fill_none(met.pt,-9999),
-                ak.fill_none(mt2_val,-9999),
-                ak.fill_none(ptl4,-9999),
-                ak.fill_none(scalarptsum_lepmet,-9999),
-                ak.fill_none(scalarptsum_lepmetjet,-9999),
-                ak.fill_none(z_lep0.pt,-9999),
-                ak.fill_none(z_lep1.pt,-9999),
-                ak.fill_none(w_lep0.pt,-9999),
-                ak.fill_none(w_lep1.pt,-9999),
-            ]
+            bdt_feat_lst = [ "m_ll", "dPhi_4Lep_MET", "dPhi_Zcand_MET", "dPhi_WW_MET", "dR_Wcands", "dR_Zcands", "dR_WW_Z", "MET", "MT2", "Pt4l", "STLepHad", "STLep", "leading_Zcand_pt", "subleading_Zcand_pt", "leading_Wcand_pt", "subleading_Wcand_pt"]
+            bdt_var_dict = {
+                "m_ll"               : ak.fill_none(mll_wl0_wl1,-9999),
+                "dPhi_4Lep_MET"      : ak.fill_none(dphi_4l_met,-9999),
+                "dPhi_Zcand_MET"     : ak.fill_none(dphi_zleps_met,-9999),
+                "dPhi_WW_MET"        : ak.fill_none(dphi_wleps_met,-9999),
+                "dR_Wcands"          : ak.fill_none(dr_wl0_wl1,-9999),
+                "dR_Zcands"          : ak.fill_none(dr_zl0_zl1,-9999),
+                "dR_WW_Z"            : ak.fill_none(dr_wleps_zleps,-9999),
+                "MET"                : ak.fill_none(met.pt,-9999),
+                "MT2"                : ak.fill_none(mt2_val,-9999),
+                "Pt4l"               : ak.fill_none(ptl4,-9999),
+                "STLepHad"           : ak.fill_none(scalarptsum_lepmet,-9999),
+                "STLep"              : ak.fill_none(scalarptsum_lepmetjet,-9999),
+                "leading_Zcand_pt"   : ak.fill_none(z_lep0.pt,-9999),
+                "subleading_Zcand_pt": ak.fill_none(z_lep1.pt,-9999),
+                "leading_Wcand_pt"   : ak.fill_none(w_lep0.pt,-9999),
+                "subleading_Wcand_pt": ak.fill_none(w_lep1.pt,-9999),
+            }
 
-            #bdt_of_wwz_raw = es_ec.eval_sig_bdt(events,bdt_vars,ewkcoffea_path("data/wwz_zh_bdt/of_WWZ.json"))
-            #bdt_sf_wwz_raw = es_ec.eval_sig_bdt(events,bdt_vars,ewkcoffea_path("data/wwz_zh_bdt/sf_WWZ.json"))
-            #bdt_of_zh_raw  = es_ec.eval_sig_bdt(events,bdt_vars,ewkcoffea_path("data/wwz_zh_bdt/of_ZH.json"))
-            #bdt_sf_zh_raw  = es_ec.eval_sig_bdt(events,bdt_vars,ewkcoffea_path("data/wwz_zh_bdt/sf_ZH.json"))
-            bdt_of_wwz_raw = 0 # TODO: Update xgb for coffea23
-            bdt_sf_wwz_raw = 0 # TODO: Update xgb for coffea23
-            bdt_of_zh_raw  = 0 # TODO: Update xgb for coffea23
-            bdt_sf_zh_raw  = 0 # TODO: Update xgb for coffea23
+            bdt_of_wwz_raw = os_ec.xgb_eval_wrapper(bdt_feat_lst,bdt_var_dict,ewkcoffea_path("data/wwz_zh_bdt/of_WWZ.json"))
+            bdt_sf_wwz_raw = os_ec.xgb_eval_wrapper(bdt_feat_lst,bdt_var_dict,ewkcoffea_path("data/wwz_zh_bdt/sf_WWZ.json"))
+            bdt_of_zh_raw  = os_ec.xgb_eval_wrapper(bdt_feat_lst,bdt_var_dict,ewkcoffea_path("data/wwz_zh_bdt/of_ZH.json"))
+            bdt_sf_zh_raw  = os_ec.xgb_eval_wrapper(bdt_feat_lst,bdt_var_dict,ewkcoffea_path("data/wwz_zh_bdt/sf_ZH.json"))
+
             # Match TMVA's scaling https://root.cern.ch/doc/v606/MethodBDT_8cxx_source.html
             bdt_of_wwz = (2.0*((1.0+math.e**(-2*bdt_of_wwz_raw))**(-1))) - 1.0
             bdt_sf_wwz = (2.0*((1.0+math.e**(-2*bdt_sf_wwz_raw))**(-1))) - 1.0
@@ -668,14 +666,14 @@ class AnalysisProcessor(processor.ProcessorABC):
                 #"mlb_min" : mlb_min,
                 #"mlb_max" : mlb_max,
 
-                #"bdt_of_wwz_raw": bdt_of_wwz_raw,
-                #"bdt_sf_wwz_raw": bdt_sf_wwz_raw,
-                #"bdt_of_zh_raw" : bdt_of_zh_raw,
-                #"bdt_sf_zh_raw" : bdt_sf_zh_raw,
-                #"bdt_of_wwz": bdt_of_wwz,
-                #"bdt_sf_wwz": bdt_sf_wwz,
-                #"bdt_of_zh" : bdt_of_zh,
-                #"bdt_sf_zh" : bdt_sf_zh,
+                "bdt_of_wwz_raw": bdt_of_wwz_raw,
+                "bdt_sf_wwz_raw": bdt_sf_wwz_raw,
+                "bdt_of_zh_raw" : bdt_of_zh_raw,
+                "bdt_sf_zh_raw" : bdt_sf_zh_raw,
+                "bdt_of_wwz": bdt_of_wwz,
+                "bdt_sf_wwz": bdt_sf_wwz,
+                "bdt_of_zh" : bdt_of_zh,
+                "bdt_sf_zh" : bdt_sf_zh,
             }
 
             # List the hists that are only defined for some categories
