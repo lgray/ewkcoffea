@@ -149,36 +149,77 @@ def get_topmva_score_mu(events, year):
     else: raise Exception(f"Error: Unknown year \"{year}\". Exiting...")
     model_fpath = topcoffea_path(f"data/topmva/lepid_weights/mu_TOP{ulbase}_XGB.weights.bin")
 
-    # Get the input data
+    # Put some stuff into mu object
     mu["btagDeepFlavB"] = ak.fill_none(mu.matched_jet.btagDeepFlavB, 0)
-
     mu["jetPtRatio"] = 1./(mu.jetRelIso+1.)
     mu["miniPFRelIso_diff_all_chg"] = mu.miniPFRelIso_all - mu.miniPFRelIso_chg
-    in_vals = np.array([
-        ak.flatten(mu.pt),
-        ak.flatten(mu.eta), # Kirill confirms that signed eta was used in the training
-        ak.flatten(mu.jetNDauCharged),
-        ak.flatten(mu.miniPFRelIso_chg),
-        ak.flatten(mu.miniPFRelIso_diff_all_chg),
-        ak.flatten(mu.jetPtRelv2),
-        ak.flatten(mu.jetPtRatio),
-        ak.flatten(mu.pfRelIso03_all),
-        ak.flatten(mu.btagDeepFlavB),
-        ak.flatten(mu.sip3d),
-        ak.flatten(np.log(abs(mu.dxy))),
-        ak.flatten(np.log(abs(mu.dz))),
-        ak.flatten(mu.segmentComp),
-    ])
-    in_vals = np.transpose(in_vals)
-    in_vals = xgb.DMatrix(in_vals)
 
-    # Load model and evaluate
-    xgb.set_config(verbosity = 0)
-    bst = xgb.Booster()
-    bst.load_model(model_fpath)
-    score = bst.predict(in_vals).reshape(-1)
+    # Order comes from https://github.com/cmstas/VVVNanoLooper/blob/8a194165cdbbbee3bcf69f932d837e95a0a265e6/src/MuonIDHelper.cc#L102-L116
+    feature_list = [
+        "pt",
+        "eta",
+        "jetNDauCharged",
+        "miniPFRelIso_chg",
+        "miniPFRelIso_diff_all_chg",
+        "jetPtRelv2",
+        "jetPtRatio",
+        "pfRelIso03_all",
+        "ak4jet:btagDeepFlavB",
+        "sip3d",
+        "log_abs_dxy",
+        "log_abs_dz",
+        "segmentComp",
+    ]
+
+    # Flatten, and store in a dict for easy access
+    in_vals_flat_dict = {
+        "pt"                       : ak.flatten(mu.pt),
+        "eta"                      : ak.flatten(mu.eta), # Kirill confirms that signed eta was used in the training
+        "jetNDauCharged"           : ak.flatten(mu.jetNDauCharged),
+        "miniPFRelIso_chg"         : ak.flatten(mu.miniPFRelIso_chg),
+        "miniPFRelIso_diff_all_chg": ak.flatten(mu.miniPFRelIso_diff_all_chg),
+        "jetPtRelv2"               : ak.flatten(mu.jetPtRelv2),
+        "jetPtRatio"               : ak.flatten(mu.jetPtRatio),
+        "pfRelIso03_all"           : ak.flatten(mu.pfRelIso03_all),
+        "ak4jet:btagDeepFlavB"     : ak.flatten(mu.btagDeepFlavB),
+        "sip3d"                    : ak.flatten(mu.sip3d),
+        "log_abs_dxy"              : ak.flatten(np.log(abs(mu.dxy))),
+        "log_abs_dz"               : ak.flatten(np.log(abs(mu.dz))),
+        "segmentComp"              : ak.flatten(mu.segmentComp),
+    }
+
+    # From https://github.com/CoffeaTeam/coffea/blob/master/tests/test_ml_tools.py#L169-L174
+    class xgboost_test(xgboost_wrapper):
+        def prepare_awkward(self, events):
+            ak = self.get_awkward_lib(events)
+            ret = ak.concatenate(
+                [events[name][:, np.newaxis] for name in feature_list], axis=1
+            )
+            return [], dict(data=ret)
+
+    # Reshape the input array
+    # E.g. we want to go from something like this:
+    #   {
+    #       "a" : ak.Array([[1.1 ,2.1] ,[3.2]]),
+    #       "b" : ak.Array([[-1.1,-2.1],[-3.2]]),
+    #   }
+    # To something that looks like this:
+    #   input_arr  = ak.Array([
+    #       {"a": 1.1, "b": -1.1},
+    #       {"a": 2.1, "b": -2.1},
+    #       {"a": 3.1, "b": -3.1},
+    #   ])
+    input_arr = ak.zip(
+        {feat_name: in_vals_flat_dict[feat_name] for feat_name in in_vals_flat_dict.keys()}
+    )
+
+    # Get the score
+    xgb_wrap = xgboost_test(model_fpath)
+    score = xgb_wrap(input_arr)
 
     # Restore the shape (i.e. unflatten)
     counts = ak.num(mu.pt)
     score = ak.unflatten(score,counts)
+
     return score
+
