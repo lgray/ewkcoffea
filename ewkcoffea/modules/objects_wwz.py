@@ -1,7 +1,5 @@
 import numpy as np
 import awkward as ak
-import dask_awkward as dak
-import xgboost as xgb
 
 from coffea.ml_tools.xgboost_wrapper import xgboost_wrapper
 
@@ -121,19 +119,19 @@ def get_topmva_score_ele(events, year):
 
     # Flatten, and store in a dict for easy access
     in_vals_flat_dict = {
-       "pt"                        : ak.flatten(ele.pt),
-       "eta"                       : ak.flatten(ele.eta), # Kirill confirms that signed eta was used in the training
-       "jetNDauCharged"            : ak.flatten(ele.jetNDauCharged),
-       "miniPFRelIso_chg"          : ak.flatten(ele.miniPFRelIso_chg),
-       "miniPFRelIso_diff_all_chg" : ak.flatten(ele.miniPFRelIso_diff_all_chg),
-       "jetPtRelv2"                : ak.flatten(ele.jetPtRelv2),
-       "jetPtRatio"                : ak.flatten(ele.jetPtRatio),
-       "pfRelIso03_all"            : ak.flatten(ele.pfRelIso03_all),
-       "ak4jet:btagDeepFlavB"      : ak.flatten(ele.btagDeepFlavB),
-       "sip3d"                     : ak.flatten(ele.sip3d),
-       "log_abs_dxy"               : ak.flatten(np.log(abs(ele.dxy))),
-       "log_abs_dz"                : ak.flatten(np.log(abs(ele.dz))),
-       "mvaFall17V2noIso"          : ak.flatten(ele.mvaFall17V2noIso),
+        "pt"                        : ak.flatten(ele.pt),
+        "eta"                       : ak.flatten(ele.eta), # Kirill confirms that signed eta was used in the training
+        "jetNDauCharged"            : ak.flatten(ele.jetNDauCharged),
+        "miniPFRelIso_chg"          : ak.flatten(ele.miniPFRelIso_chg),
+        "miniPFRelIso_diff_all_chg" : ak.flatten(ele.miniPFRelIso_diff_all_chg),
+        "jetPtRelv2"                : ak.flatten(ele.jetPtRelv2),
+        "jetPtRatio"                : ak.flatten(ele.jetPtRatio),
+        "pfRelIso03_all"            : ak.flatten(ele.pfRelIso03_all),
+        "ak4jet:btagDeepFlavB"      : ak.flatten(ele.btagDeepFlavB),
+        "sip3d"                     : ak.flatten(ele.sip3d),
+        "log_abs_dxy"               : ak.flatten(np.log(abs(ele.dxy))),
+        "log_abs_dz"                : ak.flatten(np.log(abs(ele.dz))),
+        "mvaFall17V2noIso"          : ak.flatten(ele.mvaFall17V2noIso),
     }
 
     score = xgb_eval_lep_id_wrapper(feature_lst,in_vals_flat_dict,model_fpath)

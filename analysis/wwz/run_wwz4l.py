@@ -7,10 +7,8 @@ import cloudpickle
 import gzip
 import os
 import dask
-from coffea import processor
 from coffea.nanoevents import NanoAODSchema
 from coffea.nanoevents import NanoEventsFactory
-from coffea.dataset_tools import apply_processor
 
 import topcoffea.modules.remote_environment as remote_environment
 
@@ -330,20 +328,6 @@ if __name__ == '__main__':
 
     print("Compute histos")
     output = dask.compute(histos_to_compute)[0] # Output of dask.compute is a tuple
-
-    '''
-    if executor == "futures":
-        exec_instance = processor.FuturesExecutor(workers=nworkers)
-        runner = processor.Runner(exec_instance, schema=NanoAODSchema, chunksize=chunksize, maxchunks=nchunks)
-    elif executor == "iterative":
-        exec_instance = processor.IterativeExecutor()
-        runner = processor.Runner(exec_instance, schema=NanoAODSchema, chunksize=chunksize, maxchunks=nchunks)
-    elif executor ==  "work_queue":
-        executor = processor.WorkQueueExecutor(**executor_args)
-        runner = processor.Runner(executor, schema=NanoAODSchema, chunksize=chunksize, maxchunks=nchunks, skipbadfiles=False, xrootdtimeout=180)
-    '''
-
-    #output = runner(flist, treename, processor_instance)
 
     dt = time.time() - tstart
 
