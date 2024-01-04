@@ -10,6 +10,10 @@ import dask
 from coffea.nanoevents import NanoAODSchema
 from coffea.nanoevents import NanoEventsFactory
 
+from coffea.dataset_tools import preprocess
+from coffea.dataset_tools import apply_to_fileset
+from distributed import Client
+
 import topcoffea.modules.remote_environment as remote_environment
 
 import wwz4l
@@ -307,8 +311,52 @@ if __name__ == '__main__':
     # Run the processor and get the output
     tstart = time.time()
 
+    ####################################3
     ### coffea2023 ###
 
+    # Trying this
+
+    fileset = {}
+    for name, fpaths in fdict.items():
+        fileset[name] = {}
+        fileset[name]["files"] = {}
+        for fpath in fpaths:
+            fileset[name]["files"][fpath] = {"object_path": "Events"}
+            fileset[name]["metadata"] = {"dataset": name}
+    print(fileset)
+
+    with Client() as _:
+        print("Number of datasets:",len(fdict))
+        dataset_runnable, dataset_updated = preprocess(
+            fileset,
+            maybe_step_size=50_000,
+            align_clusters=False,
+            files_per_batch=1,
+            skip_bad_files=True,
+            #calculate_form=True,
+        )
+
+        print('\n\nHere after preprocess!!!')
+
+        # "runnable" means the dataset containing only files that were successfully opened, this either copies or creates metadata entries depending on if you defined some already
+        # moreover, you could save these two dicts to a file and just read them in later, only ever running preprocess once every time you update your analysis's datasets.
+        outputs, reports = apply_to_fileset(
+            processor_instance, 
+            fileset, 
+            uproot_options={"allow_read_errors_with_report": True}
+        )
+        print('\n\nHere after apply_to_fileset')
+
+        coutputs, creports = dask.compute(outputs, reports) # , scheduler=taskvine
+
+        print('\n\nHere after compute!!!')
+
+        exit()
+
+    ####################################3
+
+    # Works
+    '''
     # Create dict of events objects
     print("Number of datasets:",len(fdict))
     events_dict = {}
@@ -319,6 +367,7 @@ if __name__ == '__main__':
             metadata={"dataset": name},
         ).events()
 
+
     # Get and compute the histograms
     histos_to_compute = {}
     for json_name in fdict.keys():
@@ -328,17 +377,9 @@ if __name__ == '__main__':
     print("Compute histos")
     output = dask.compute(histos_to_compute)[0] # Output of dask.compute is a tuple
 
+    '''
+
     dt = time.time() - tstart
-
-    if executor == "work_queue":
-        print('Processed {} events in {} seconds ({:.2f} evts/sec).'.format(nevts_total,dt,nevts_total/dt))
-
-    #nbins = sum(sum(arr.size for arr in h._sumw.values()) for h in output.values() if isinstance(h, hist.Hist))
-    #nfilled = sum(sum(np.sum(arr > 0) for arr in h._sumw.values()) for h in output.values() if isinstance(h, hist.Hist))
-    #print("Filled %.0f bins, nonzero bins: %1.1f %%" % (nbins, 100*nfilled/nbins,))
-
-    if executor == "futures":
-        print("Processing time: %1.2f s with %i workers (%.2f s cpu overall)" % (dt, nworkers, dt*nworkers, ))
 
     # Save the output
     if not os.path.isdir(outpath): os.system("mkdir -p %s"%outpath)
