@@ -265,14 +265,12 @@ class AnalysisProcessor(processor.ProcessorABC):
         #'''
         # Do the object selection for the WWZ eleectrons
         ele_presl_mask = os_ec.is_presel_wwz_ele(ele,tight=True)
-        #ele["topmva"] = os_ec.get_topmva_score_ele(events, year)
-        ele["topmva"] = 0 # TODO: Update xgb stuff for coffea2023
+        ele["topmva"] = os_ec.get_topmva_score_ele(events, year)
         ele["is_tight_lep_for_wwz"] = ((ele.topmva > get_tc_param("topmva_wp_t_e")) & ele_presl_mask)
 
         # Do the object selection for the WWZ muons
         mu_presl_mask = os_ec.is_presel_wwz_mu(mu)
-        #mu["topmva"] = os_ec.get_topmva_score_mu(events, year)
-        mu["topmva"] = 0 # TODO: Update xgb stuff for coffea2023
+        mu["topmva"] = os_ec.get_topmva_score_mu(events, year)
         mu["is_tight_lep_for_wwz"] = ((mu.topmva > get_tc_param("topmva_wp_t_m")) & mu_presl_mask)
 
         # Get tight leptons for WWZ selection
@@ -410,8 +408,8 @@ class AnalysisProcessor(processor.ProcessorABC):
             ######### Apply SFs #########
 
             if not isData:
-                ##weights_obj_base_for_kinematic_syst.add("lepSF_muon", events.sf_4l_muon, copy.deepcopy(events.sf_4l_hi_muon), copy.deepcopy(events.sf_4l_lo_muon))
-                ##weights_obj_base_for_kinematic_syst.add("lepSF_elec", events.sf_4l_elec, copy.deepcopy(events.sf_4l_hi_elec), copy.deepcopy(events.sf_4l_lo_elec))
+                weights_obj_base_for_kinematic_syst.add("lepSF_muon", events.sf_4l_muon, copy.deepcopy(events.sf_4l_hi_muon), copy.deepcopy(events.sf_4l_lo_muon))
+                weights_obj_base_for_kinematic_syst.add("lepSF_elec", events.sf_4l_elec, copy.deepcopy(events.sf_4l_hi_elec), copy.deepcopy(events.sf_4l_lo_elec))
 
                 ### OLD implimentation from TOP-22-006
                 ## Btag SF following 1a) in https://twiki.cern.ch/twiki/bin/viewauth/CMS/BTagSFMethods
@@ -441,7 +439,7 @@ class AnalysisProcessor(processor.ProcessorABC):
                 wgt_light = cor_tc.get_method1a_wgt_singlewp(btag_eff_light,btag_sf_light, jets_light.btagDeepFlavB>btagwpl)
                 wgt_bc    = cor_tc.get_method1a_wgt_singlewp(btag_eff_bc,   btag_sf_bc,    jets_bc.btagDeepFlavB>btagwpl)
 
-                ##weights_obj_base_for_kinematic_syst.add("btagSF", wgt_light*wgt_bc)
+                weights_obj_base_for_kinematic_syst.add("btagSF", wgt_light*wgt_bc)
 
 
             ######### Masks we need for the selection ##########
@@ -513,7 +511,6 @@ class AnalysisProcessor(processor.ProcessorABC):
             selections.add("sr_4l_of_4", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_4))
 
             selections.add("all_events", (events.is4lWWZ | (~events.is4lWWZ))) # All events.. this logic is a bit roundabout to just get an array of True
-            selections.add("all_events_trg", (bmask_atleast1loose & (events.is4lWWZ | (~events.is4lWWZ))))
             selections.add("4l_presel", (events.is4lWWZ)) # This matches the VVV looper selection (object selection and event selection)
 
             selections.add("sr_4l_sf_presel", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & (met.pt > 65.0)))
@@ -533,11 +530,10 @@ class AnalysisProcessor(processor.ProcessorABC):
             cat_dict = {
                 "lep_chan_lst" : [
                     "all_events",
-                    #"all_events","all_events_trg",
-                    #"sr_4l_sf_A","sr_4l_sf_B","sr_4l_sf_C","sr_4l_of_1","sr_4l_of_2","sr_4l_of_3","sr_4l_of_4",
-                    #"sr_4l_sf_presel", "sr_4l_of_presel",
-                    #"all_events","4l_presel",
-                    #"cr_4l_btag_of","cr_4l_sf", "cr_4l_btag_sf", "cr_4l_btag_sf_offZ", "cr_4l_btag_sf_offZ_met80",
+                    "sr_4l_sf_A","sr_4l_sf_B","sr_4l_sf_C","sr_4l_of_1","sr_4l_of_2","sr_4l_of_3","sr_4l_of_4",
+                    "sr_4l_sf_presel", "sr_4l_of_presel",
+                    "all_events","4l_presel",
+                    "cr_4l_btag_of","cr_4l_sf", "cr_4l_btag_sf", "cr_4l_btag_sf_offZ", "cr_4l_btag_sf_offZ_met80",
                 ],
             }
 
@@ -674,14 +670,14 @@ class AnalysisProcessor(processor.ProcessorABC):
                 #"mlb_min" : mlb_min,
                 #"mlb_max" : mlb_max,
 
-                "bdt_of_wwz_raw": bdt_of_wwz_raw,
-                "bdt_sf_wwz_raw": bdt_sf_wwz_raw,
-                "bdt_of_zh_raw" : bdt_of_zh_raw,
-                "bdt_sf_zh_raw" : bdt_sf_zh_raw,
-                "bdt_of_wwz": bdt_of_wwz,
-                "bdt_sf_wwz": bdt_sf_wwz,
-                "bdt_of_zh" : bdt_of_zh,
-                "bdt_sf_zh" : bdt_sf_zh,
+                #"bdt_of_wwz_raw": bdt_of_wwz_raw,
+                #"bdt_sf_wwz_raw": bdt_sf_wwz_raw,
+                #"bdt_of_zh_raw" : bdt_of_zh_raw,
+                #"bdt_sf_zh_raw" : bdt_sf_zh_raw,
+                #"bdt_of_wwz": bdt_of_wwz,
+                #"bdt_sf_wwz": bdt_sf_wwz,
+                #"bdt_of_zh" : bdt_of_zh,
+                #"bdt_sf_zh" : bdt_sf_zh,
             }
 
             # List the hists that are only defined for some categories
@@ -749,7 +745,6 @@ class AnalysisProcessor(processor.ProcessorABC):
             for dense_axis_name, dense_axis_vals in dense_variables_dict.items():
                 #print("\ndense_axis_name,vals",dense_axis_name)
                 #print("dense_axis_name,vals",dense_axis_vals)
-                if ("njets" not in dense_axis_name) and ("met" != dense_axis_name): continue
 
                 # Create the hist for this dense axis variable
                 #if dense_axis_name not in hout: # IF Looping over all datasets !!!
