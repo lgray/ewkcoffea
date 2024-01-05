@@ -7,12 +7,14 @@ import cloudpickle
 import gzip
 import os
 import dask
+import dask_awkward as dak
+from distributed import Client
+
 from coffea.nanoevents import NanoAODSchema
 from coffea.nanoevents import NanoEventsFactory
 
 from coffea.dataset_tools import preprocess
 from coffea.dataset_tools import apply_to_fileset
-from distributed import Client
 
 import topcoffea.modules.remote_environment as remote_environment
 
@@ -314,8 +316,7 @@ if __name__ == '__main__':
     ####################################3
     ### coffea2023 ###
 
-    # Trying this
-
+    # Get fileset
     fileset = {}
     for name, fpaths in fdict.items():
         fileset[name] = {}
@@ -324,60 +325,64 @@ if __name__ == '__main__':
             fileset[name]["files"][fpath] = {"object_path": "Events"}
             fileset[name]["metadata"] = {"dataset": name}
     print(fileset)
-
-    with Client() as _:
-        print("Number of datasets:",len(fdict))
-        dataset_runnable, dataset_updated = preprocess(
-            fileset,
-            maybe_step_size=50_000,
-            align_clusters=False,
-            files_per_batch=1,
-            skip_bad_files=True,
-            #calculate_form=True,
-        )
-
-        print('\n\nHere after preprocess!!!')
-
-        # "runnable" means the dataset containing only files that were successfully opened, this either copies or creates metadata entries depending on if you defined some already
-        # moreover, you could save these two dicts to a file and just read them in later, only ever running preprocess once every time you update your analysis's datasets.
-        outputs, reports = apply_to_fileset(
-            processor_instance, 
-            fileset, 
-            uproot_options={"allow_read_errors_with_report": True}
-        )
-        print('\n\nHere after apply_to_fileset')
-
-        coutputs, creports = dask.compute(outputs, reports) # , scheduler=taskvine
-
-        print('\n\nHere after compute!!!')
-
-        exit()
-
-    ####################################3
-
-    # Works
-    '''
-    # Create dict of events objects
     print("Number of datasets:",len(fdict))
-    events_dict = {}
-    for name, fpaths in fdict.items():
-        events_dict[name] = NanoEventsFactory.from_root(
-            {fpath: "/Events" for fpath in fpaths},
-            schemaclass=NanoAODSchema,
-            metadata={"dataset": name},
-        ).events()
 
 
-    # Get and compute the histograms
-    histos_to_compute = {}
-    for json_name in fdict.keys():
-        print(f"Getting histos for {json_name}")
-        histos_to_compute[json_name] = processor_instance.process(events_dict[json_name])
+    #### Try with distributed Client ####
+    distributed_client = 0 # Tmp
+    if distributed_client:
+        with Client() as _:
 
-    print("Compute histos")
-    output = dask.compute(histos_to_compute)[0] # Output of dask.compute is a tuple
+            # Run preprocess
+            print("\nRunning preprocess...")
+            dataset_runnable, dataset_updated = preprocess(
+                fileset,
+                maybe_step_size=50_000,
+                align_clusters=False,
+                files_per_batch=1,
+                skip_bad_files=True,
+                #calculate_form=True,
+            )
 
-    '''
+            # Run apply_to_fileset
+            print("\nRunning apply_to_fileset...")
+            histos_to_compute, reports = apply_to_fileset(
+                processor_instance,
+                fileset,
+                uproot_options={"allow_read_errors_with_report": True}
+            )
+
+            print("\nRunning compute...")
+            output, report = dask.compute(histos_to_compute, reports) # , scheduler=taskvine
+
+            print("\nColumns used...")
+            used_columns = dak.necessary_columns(histos_to_compute)
+            print(used_columns)
+
+
+    #### Local example ####
+    local = 1 # Tmp
+    if local:
+
+        # Create dict of events objects
+        print("Number of datasets:",len(fdict))
+        events_dict = {}
+        for name, fpaths in fdict.items():
+            events_dict[name] = NanoEventsFactory.from_root(
+                {fpath: "/Events" for fpath in fpaths},
+                schemaclass=NanoAODSchema,
+                metadata={"dataset": name},
+            ).events()
+
+        # Get and compute the histograms
+        histos_to_compute = {}
+        for json_name in fdict.keys():
+            print(f"Getting histos for {json_name}")
+            histos_to_compute[json_name] = processor_instance.process(events_dict[json_name])
+
+        print("Compute histos")
+        output = dask.compute(histos_to_compute)[0] # Output of dask.compute is a tuple
+
 
     dt = time.time() - tstart
 

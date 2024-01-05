@@ -339,7 +339,7 @@ class AnalysisProcessor(processor.ProcessorABC):
         for syst_var in syst_var_list:
             # Make a copy of the base weights object, so that each time through the loop we do not double count systs
             # In this loop over systs that impact kinematics, we will add to the weights objects the SFs that depend on the object kinematics
-            weights_obj_base_for_kinematic_syst = copy.deepcopy(weights_obj_base)
+            weights_obj_base_for_kinematic_syst = copy.copy(weights_obj_base) # TODO do we need copy here?
 
 
             #################### Jets ####################
@@ -407,8 +407,8 @@ class AnalysisProcessor(processor.ProcessorABC):
             ######### Apply SFs #########
 
             if not isData:
-                weights_obj_base_for_kinematic_syst.add("lepSF_muon", events.sf_4l_muon, copy.deepcopy(events.sf_4l_hi_muon), copy.deepcopy(events.sf_4l_lo_muon))
-                weights_obj_base_for_kinematic_syst.add("lepSF_elec", events.sf_4l_elec, copy.deepcopy(events.sf_4l_hi_elec), copy.deepcopy(events.sf_4l_lo_elec))
+                weights_obj_base_for_kinematic_syst.add("lepSF_muon", events.sf_4l_muon, copy.copy(events.sf_4l_hi_muon), copy.copy(events.sf_4l_lo_muon)) # TODO do we still need to copy in dask version
+                weights_obj_base_for_kinematic_syst.add("lepSF_elec", events.sf_4l_elec, copy.copy(events.sf_4l_hi_elec), copy.copy(events.sf_4l_lo_elec))
 
                 ### OLD implimentation from TOP-22-006
                 ## Btag SF following 1a) in https://twiki.cern.ch/twiki/bin/viewauth/CMS/BTagSFMethods
