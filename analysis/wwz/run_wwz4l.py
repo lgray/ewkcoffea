@@ -329,59 +329,37 @@ if __name__ == '__main__':
 
 
     #### Try with distributed Client ####
-    distributed_client = 0 # Tmp
-    if distributed_client:
-        with Client() as _:
 
-            # Run preprocess
-            print("\nRunning preprocess...")
-            dataset_runnable, dataset_updated = preprocess(
-                fileset,
-                maybe_step_size=50_000,
-                align_clusters=False,
-                files_per_batch=1,
-                skip_bad_files=True,
-                #calculate_form=True,
-            )
+    #with Client() as _: # distributed Client scheduler
+    with dask.config.set({"scheduler": "sync"}): # Single thread
 
-            # Run apply_to_fileset
-            print("\nRunning apply_to_fileset...")
-            histos_to_compute, reports = apply_to_fileset(
-                processor_instance,
-                fileset,
-                uproot_options={"allow_read_errors_with_report": True}
-            )
+        # Run preprocess
+        print("\nRunning preprocess...")
+        dataset_runnable, dataset_updated = preprocess(
+            fileset,
+            maybe_step_size=50_000,
+            align_clusters=False,
+            files_per_batch=1,
+            #skip_bad_files=True,
+            #calculate_form=True,
+        )
 
-            print("\nRunning compute...")
-            output, report = dask.compute(histos_to_compute, reports) # , scheduler=taskvine
+        # Run apply_to_fileset
+        print("\nRunning apply_to_fileset...")
+        histos_to_compute, reports = apply_to_fileset(
+            processor_instance,
+            fileset,
+            uproot_options={"allow_read_errors_with_report": True}
+        )
 
-            print("\nColumns used...")
-            used_columns = dak.necessary_columns(histos_to_compute)
-            print(used_columns)
+        # Check columns to be read
+        print("\nColumns to be read...")
+        columns_read = dak.necessary_columns(histos_to_compute)
+        print(columns_read)
 
-
-    #### Local example ####
-    local = 1 # Tmp
-    if local:
-
-        # Create dict of events objects
-        print("Number of datasets:",len(fdict))
-        events_dict = {}
-        for name, fpaths in fdict.items():
-            events_dict[name] = NanoEventsFactory.from_root(
-                {fpath: "/Events" for fpath in fpaths},
-                schemaclass=NanoAODSchema,
-                metadata={"dataset": name},
-            ).events()
-
-        # Get and compute the histograms
-        histos_to_compute = {}
-        for json_name in fdict.keys():
-            print(f"Getting histos for {json_name}")
-            histos_to_compute[json_name] = processor_instance.process(events_dict[json_name])
-
-        print("Compute histos")
-        output = dask.compute(histos_to_compute)[0] # Output of dask.compute is a tuple
+        # Compute
+        print("\nRunning compute...")
+        output, report = dask.compute(histos_to_compute, reports) # , scheduler=taskvine
 
 
     dt = time.time() - tstart
