@@ -330,8 +330,8 @@ if __name__ == '__main__':
 
     #### Try with distributed Client ####
 
-    #with Client() as _: # distributed Client scheduler
-    with dask.config.set({"scheduler": "sync"}): # Single thread
+    #with dask.config.set({"scheduler": "sync"}): # Single thread
+    with Client() as _: # distributed Client scheduler
 
         # Run preprocess
         print("\nRunning preprocess...")
