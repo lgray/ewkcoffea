@@ -18,6 +18,8 @@ from coffea.dataset_tools import apply_to_fileset
 
 import topcoffea.modules.remote_environment as remote_environment
 
+from ndcctools.taskvine import DaskVine
+
 import wwz4l
 
 LST_OF_KNOWN_EXECUTORS = ["futures","work_queue","iterative"]
@@ -331,7 +333,8 @@ if __name__ == '__main__':
     #### Try with distributed Client ####
 
     #with dask.config.set({"scheduler": "sync"}): # Single thread
-    with Client() as _: # distributed Client scheduler
+    #with Client() as _: # distributed Client scheduler
+    with Client() as client:
 
         # Run preprocess
         print("\nRunning preprocess...")
@@ -348,18 +351,52 @@ if __name__ == '__main__':
         print("\nRunning apply_to_fileset...")
         histos_to_compute, reports = apply_to_fileset(
             processor_instance,
-            fileset,
+            dataset_runnable,
             uproot_options={"allow_read_errors_with_report": True}
         )
 
         # Check columns to be read
-        print("\nColumns to be read...")
-        columns_read = dak.necessary_columns(histos_to_compute)
+        print("\nRunning necessary_columns...")
+        columns_read = dak.necessary_columns(histos_to_compute[list(histos_to_compute.keys())[0]])
         print(columns_read)
 
         # Compute
         print("\nRunning compute...")
-        output, report = dask.compute(histos_to_compute, reports) # , scheduler=taskvine
+        output_futures, report_futures = {}, {}
+        for key in histos_to_compute:
+            output_futures[key], report_futures[key] = client.compute((histos_to_compute[key], reports[key],)) # , scheduler=taskvine
+
+        coutputs, creports = client.gather((output_futures, report_futures,))
+
+
+
+    ### Task vine testing ###
+    do_tv = 0
+    if do_tv:
+
+        fdict = {"UL17_WWZJetsTo4L2Nu_forCI": ["/home/k.mohrman/coffea_dir/migrate_to_coffea2023_repo/ewkcoffea/analysis/wwz/output_1.root"]}
+
+        # Create dict of events objects
+        print("Number of datasets:",len(fdict))
+        events_dict = {}
+        for name, fpaths in fdict.items():
+            events_dict[name] = NanoEventsFactory.from_root(
+                {fpath: "/Events" for fpath in fpaths},
+                schemaclass=NanoAODSchema,
+                metadata={"dataset": name},
+            ).events()
+
+        # Get and compute the histograms
+        histos_to_compute = {}
+        for json_name in fdict.keys():
+            print(f"Getting histos for {json_name}")
+            histos_to_compute[json_name] = processor_instance.process(events_dict[json_name])
+
+        m = DaskVine([9123,9128], name=f"coffea-vine-{os.environ['USER']}")
+
+        print("Compute histos")
+        #output = dask.compute(histos_to_compute)[0] # Output of dask.compute is a tuple
+        coutputs = dask.compute(histos_to_compute, scheduler=m.get, resources={"cores": 1}, resources_mode=None, lazy_transfers=True)
 
 
     dt = time.time() - tstart
@@ -369,5 +406,5 @@ if __name__ == '__main__':
     out_pkl_file = os.path.join(outpath,outname+".pkl.gz")
     print(f"\nSaving output in {out_pkl_file}...")
     with gzip.open(out_pkl_file, "wb") as fout:
-        cloudpickle.dump(output, fout)
+        cloudpickle.dump(coutputs, fout)
     print("Done!")
