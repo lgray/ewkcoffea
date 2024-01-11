@@ -268,13 +268,9 @@ def get_wwz_candidates(lep_collection):
     leps_from_z_candidate = lep_collection[z_candidate_mask]
     leps_not_z_candidate = lep_collection[~z_candidate_mask]
 
-    if ak.any(leps_from_z_candidate.pt) & ak.any(leps_not_z_candidate.pt):
-        # Temp untill the ak argsort on None issue is resolved
-        leps_from_z_candidate_ptordered = leps_from_z_candidate[ak.argsort(leps_from_z_candidate.pt, axis=-1,ascending=False)]
-        leps_not_z_candidate_ptordered = leps_not_z_candidate[ak.argsort(leps_not_z_candidate.pt, axis=-1,ascending=False)] # This fails wehn the leps_not_z_candidate.pt is None, if/when we need this to be pt ordered will need to figure out how we want to work around this
-        return [leps_from_z_candidate_ptordered,leps_not_z_candidate_ptordered]
-    else:
-        return [leps_from_z_candidate,leps_not_z_candidate]
+    leps_from_z_candidate_ptordered = leps_from_z_candidate[ak.argsort(leps_from_z_candidate.pt, axis=-1,ascending=False)]
+    leps_not_z_candidate_ptordered = leps_not_z_candidate[ak.argsort(leps_not_z_candidate.pt, axis=-1,ascending=False)]
+    return [leps_from_z_candidate_ptordered,leps_not_z_candidate_ptordered]
 
 
 
