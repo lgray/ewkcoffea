@@ -235,7 +235,7 @@ def add4lmask_wwz(events, year, isData, sample_name):
 def get_z_candidate_mask(lep_collection):
 
     # Attach the local index to the lepton objects
-    lep_collection['idx'] = ak.local_index(lep_collection, axis=1)
+    lep_local_idx = ak.local_index(lep_collection, axis=1)
 
     # Make all pairs of leptons
     ll_pairs = ak.combinations(lep_collection, 2, fields=["l0","l1"])
@@ -251,8 +251,8 @@ def get_z_candidate_mask(lep_collection):
     sfos_pair_closest_to_z_idx = ak.argmin(dist_from_z_sfos_pairs,axis=-1,keepdims=True)
 
     # Construct a mask (of the shape of the original lep array) corresponding to the leps that are part of the Z candidate
-    mask = (lep_collection.idx == ak.flatten(ll_pairs_idx.l0[sfos_pair_closest_to_z_idx]))
-    mask = (mask | (lep_collection.idx == ak.flatten(ll_pairs_idx.l1[sfos_pair_closest_to_z_idx])))
+    flat_pair_idxs = ak.flatten(ll_pairs_idx[sfos_pair_closest_to_z_idx])
+    mask = ((lep_local_idx == flat_pair_idxs.l0) | (lep_local_idx == flat_pair_idxs.l1))
     mask = ak.fill_none(mask, False)
 
     return mask
