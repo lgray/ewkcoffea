@@ -737,7 +737,8 @@ class AnalysisProcessor(processor.ProcessorABC):
 
 
             # Loop over the hists we want to fill
-            hout = {}
+            hout = {} # This is what we'll eventually return
+            masks_cache = {} # So we don't need to build the same mask multiple times
             for dense_axis_name, dense_axis_vals in dense_variables_dict.items():
                 #print("\ndense_axis_name,vals",dense_axis_name)
                 #print("dense_axis_name,vals",dense_axis_vals)
@@ -752,7 +753,7 @@ class AnalysisProcessor(processor.ProcessorABC):
                 )
 
                 # Decide if we are filling this hist with weight or raw event counts
-                if dense_axis_name.endswith("_counts"): weights = events.nom
+                if isData or dense_axis_name.endswith("_counts"): weights = events.nom
                 #else: weights = weights_obj_base_for_kinematic_syst.partial_weight(include=["norm"])
                 else: weights = weights_obj_base_for_kinematic_syst.weight(None)
 
@@ -765,6 +766,13 @@ class AnalysisProcessor(processor.ProcessorABC):
                     # Make the cuts mask
                     cuts_lst = [sr_cat]
                     if isData: cuts_lst.append("is_good_lumi") # Apply golden json requirements if this is data
+
+                    # Do not recalculate the mask if we've already computed it
+                    #if tuple(cuts_lst) in masks_cache:
+                    #    all_cuts_mask = masks_cache[tuple(cuts_lst)]
+                    #else:
+                    #    masks_cache[tuple(cuts_lst)] = selections.all(*cuts_lst)
+                    #    all_cuts_mask = masks_cache[tuple(cuts_lst)]
                     all_cuts_mask = selections.all(*cuts_lst)
 
                     #run = events.run[all_cuts_mask]
