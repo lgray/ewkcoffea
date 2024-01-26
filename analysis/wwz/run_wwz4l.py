@@ -15,6 +15,7 @@ from coffea.nanoevents import NanoEventsFactory
 
 from coffea.dataset_tools import preprocess
 from coffea.dataset_tools import apply_to_fileset
+from coffea.dataset_tools import filter_files
 
 import topcoffea.modules.remote_environment as remote_environment
 
@@ -346,6 +347,7 @@ if __name__ == '__main__':
             #skip_bad_files=True,
             #calculate_form=True,
         )
+        dataset_runnable = filter_files(dataset_runnable)
 
         # Run apply_to_fileset
         print("\nRunning apply_to_fileset...")
