@@ -29,6 +29,14 @@ get_ec_param = GetParam(ewkcoffea_path("params/params.json"))
 import hist.dask as hda
 
 
+# Small helper function for creating the list of systematics
+# Append "Up" and "Down" to all base strings in a given syst list
+def append_up_down_to_sys_base(sys_lst_in):
+    sys_lst_out = []
+    for s in sys_lst_in:
+        sys_lst_out.append(f"{s}Up")
+        sys_lst_out.append(f"{s}Down")
+    return sys_lst_out
 
 class AnalysisProcessor(processor.ProcessorABC):
 
@@ -159,30 +167,32 @@ class AnalysisProcessor(processor.ProcessorABC):
 
         # Get up down weights from input dict
         if (self._do_systematics and not isData):
-            # Otherwise we have an NLO xsec, so for these systs we will have e.g. xsec_NLO*(N_pass_up/N_gen_up)
+            lhe_sow = self._samples[dataset]["nSumOfLheWeights"]
+            # This assumes we have an NLO xsec, so for these systs we will have e.g. xsec_NLO*(N_pass_up/N_gen_up)
             # Thus these systs should only affect acceptance and effeciency and shape
             # The uncty on xsec comes from NLO and is applied as a rate uncty in the text datacard
-            sow_ISRUp          = self._samples[dataset]["nSumOfWeights_ISRUp"          ]
-            sow_ISRDown        = self._samples[dataset]["nSumOfWeights_ISRDown"        ]
-            sow_FSRUp          = self._samples[dataset]["nSumOfWeights_FSRUp"          ]
-            sow_FSRDown        = self._samples[dataset]["nSumOfWeights_FSRDown"        ]
-            sow_renormUp       = self._samples[dataset]["nSumOfWeights_renormUp"       ]
-            sow_renormDown     = self._samples[dataset]["nSumOfWeights_renormDown"     ]
-            sow_factUp         = self._samples[dataset]["nSumOfWeights_factUp"         ]
-            sow_factDown       = self._samples[dataset]["nSumOfWeights_factDown"       ]
-            sow_renormfactUp   = self._samples[dataset]["nSumOfWeights_renormfactUp"   ]
-            sow_renormfactDown = self._samples[dataset]["nSumOfWeights_renormfactDown" ]
+            if lhe_sow == []:
+                sow_renormDown     = sow
+                sow_factDown       = sow
+                sow_factUp         = sow
+                sow_renormUp       = sow
+            elif len(lhe_sow) == 9:
+                sow_renormDown     = lhe_sow[1]
+                sow_factDown       = lhe_sow[3]
+                sow_factUp         = lhe_sow[5]
+                sow_renormUp       = lhe_sow[7]
+            elif len(lhe_sow) == 8:
+                sow_renormDown     = lhe_sow[1]
+                sow_factDown       = lhe_sow[3]
+                sow_factUp         = lhe_sow[4]
+                sow_renormUp       = lhe_sow[6]
+            else: raise Exception("ERROR: Unknown LHE weights length {len(lhe_sow)}")
         else:
-            sow_ISRUp          = -1
-            sow_ISRDown        = -1
-            sow_FSRUp          = -1
-            sow_FSRDown        = -1
             sow_renormUp       = -1
             sow_renormDown     = -1
             sow_factUp         = -1
             sow_factDown       = -1
-            sow_renormfactUp   = -1
-            sow_renormfactDown = -1
+
 
         datasets = ["SingleMuon", "SingleElectron", "EGamma", "MuonEG", "DoubleMuon", "DoubleElectron", "DoubleEG"]
         for d in datasets:
@@ -211,57 +221,9 @@ class AnalysisProcessor(processor.ProcessorABC):
             raise ValueError(f"Error: Unknown year \"{year}\".")
         lumi_mask = LumiMask(golden_json_path)(events.run,events.luminosityBlock)
 
-        #########################################################
-        ### START top22006 lep obj sel ###
-        #import topeft.modules.object_selection as te_os
-        #from topeft.modules.corrections import AttachMuonSF, AttachElectronSF
-
-        #ele["idEmu"] = te_os.ttH_idEmu_cuts_E3(ele.hoe, ele.eta, ele.deltaEtaSC, ele.eInvMinusPInv, ele.sieie)
-        #ele["conept"] = te_os.coneptElec(ele.pt, ele.mvaTTHUL, ele.jetRelIso)
-        #mu["conept"] = te_os.coneptMuon(mu.pt, mu.mvaTTHUL, mu.jetRelIso, mu.mediumId)
-        #ele["btagDeepFlavB"] = ak.fill_none(ele.matched_jet.btagDeepFlavB, -99)
-        #mu["btagDeepFlavB"] = ak.fill_none(mu.matched_jet.btagDeepFlavB, -99)
-        #if not isData:
-        #    ele["gen_pdgId"] = ak.fill_none(ele.matched_gen.pdgId, 0)
-        #    mu["gen_pdgId"] = ak.fill_none(mu.matched_gen.pdgId, 0)
-
-        #ele["isPres"] = te_os.isPresElec(ele.pt, ele.eta, ele.dxy, ele.dz, ele.miniPFRelIso_all, ele.sip3d, getattr(ele,"mvaFall17V2noIso_WPL"))
-        #ele["isLooseE"] = te_os.isLooseElec(ele.miniPFRelIso_all,ele.sip3d,ele.lostHits)
-        #ele["isFO"] = te_os.isFOElec(ele.pt, ele.conept, ele.btagDeepFlavB, ele.idEmu, ele.convVeto, ele.lostHits, ele.mvaTTHUL, ele.jetRelIso, ele.mvaFall17V2noIso_WP90, year)
-        #ele["isTightLep"] = te_os.tightSelElec(ele.isFO, ele.mvaTTHUL)
-
-        #mu["isPres"] = te_os.isPresMuon(mu.dxy, mu.dz, mu.sip3d, mu.eta, mu.pt, mu.miniPFRelIso_all)
-        #mu["isLooseM"] = te_os.isLooseMuon(mu.miniPFRelIso_all,mu.sip3d,mu.looseId)
-        #mu["isFO"] = te_os.isFOMuon(mu.pt, mu.conept, mu.btagDeepFlavB, mu.mvaTTHUL, mu.jetRelIso, year)
-        #mu["isTightLep"]= te_os.tightSelMuon(mu.isFO, mu.mediumId, mu.mvaTTHUL)
-
-        #m_loose = mu[mu.isPres & mu.isLooseM]
-        #e_loose = ele[ele.isPres & ele.isLooseE]
-        #l_loose = ak.with_name(ak.concatenate([e_loose, m_loose], axis=1), 'PtEtaPhiMCandidate')
-
-        ## Build FO collection
-        #m_fo = mu[mu.isPres & mu.isLooseM & mu.isFO]
-        #e_fo = ele[ele.isPres & ele.isLooseE & ele.isFO]
-
-        ## Attach the lepton SFs to the electron and muons collections
-        #AttachElectronSF(e_fo,year=year)
-        #AttachMuonSF(m_fo,year=year)
-
-        ## Attach per lepton fake rates
-        #m_fo['convVeto'] = ak.ones_like(m_fo.charge)
-        #m_fo['lostHits'] = ak.zeros_like(m_fo.charge)
-        #l_fo = ak.with_name(ak.concatenate([e_fo, m_fo], axis=1), 'PtEtaPhiMCandidate')
-        #l_fo_conept_sorted = l_fo[ak.argsort(l_fo.conept, axis=-1,ascending=False)]
-
-        #l_wwz_t = l_fo_conept_sorted[l_fo_conept_sorted.isTightLep]
-        #l_wwz_t = l_wwz_t[ak.argsort(l_wwz_t.pt, axis=-1,ascending=False)] # Sort by pt
-
-        ### END top22006 obj sel ###
-        ########################################################
 
         ################### Lepton selection ####################
 
-        #'''
         # Do the object selection for the WWZ eleectrons
         ele_presl_mask = os_ec.is_presel_wwz_ele(ele,tight=True)
         ele["topmva"] = os_ec.get_topmva_score_ele(events, year)
@@ -283,7 +245,6 @@ class AnalysisProcessor(processor.ProcessorABC):
         l_wwz_t = ak.with_name(ak.concatenate([ele_wwz_t,mu_wwz_t],axis=1),'PtEtaPhiMCandidate')
         l_wwz_t = l_wwz_t[ak.argsort(l_wwz_t.pt, axis=-1,ascending=False)] # Sort by pt
 
-        #'''
 
         # For WWZ: Compute pair invariant masses
         llpairs_wwz = ak.combinations(l_wwz_t, 2, fields=["l0","l1"])
@@ -308,8 +269,12 @@ class AnalysisProcessor(processor.ProcessorABC):
 
         nleps = ak.num(l_wwz_t)
 
+        # Put njets and l_fo_conept_sorted into events and get 4l event selection mask
+        events["l_wwz_t"] = l_wwz_t
+        es_ec.add4lmask_wwz(events, year, isData, histAxisName)
 
-        ######### Systematics ###########
+
+        ######### Normalization and weights ###########
 
 
         # These weights can go outside of the outside sys loop since they do not depend on pt of mu or jets
@@ -332,11 +297,46 @@ class AnalysisProcessor(processor.ProcessorABC):
             weights_obj_base.add("norm",(xsec/sow)*genw*lumi*sm_wgt)
 
 
-        # We do not have systematics yet
-        syst_var_list = ['nominal']
+            # Scale weights
+            cor_tc.AttachPSWeights(events)
+            cor_tc.AttachScaleWeights(events)
+            # FSR/ISR weights
+            # For now only consider variations in the numerator
+            weights_obj_base.add('ISR', events.nom, events.ISRUp, events.ISRDown)
+            weights_obj_base.add('FSR', events.nom, events.FSRUp, events.FSRDown)
+            # Renorm/fact scale
+            weights_obj_base.add('renorm', events.nom, events.renormUp*(sow/sow_renormUp), events.renormDown*(sow/sow_renormDown))
+            weights_obj_base.add('fact', events.nom, events.factUp*(sow/sow_factUp), events.factDown*(sow/sow_factDown))
 
-        # Loop over the list of systematic variations we've constructed
-        for syst_var in syst_var_list:
+            # Misc other experimental SFs and systs
+            weights_obj_base.add('PreFiring', events.L1PreFiringWeight.Nom,  events.L1PreFiringWeight.Up,  events.L1PreFiringWeight.Dn)
+            weights_obj_base.add('PU', cor_tc.GetPUSF((events.Pileup.nTrueInt), year), cor_tc.GetPUSF(events.Pileup.nTrueInt, year, 'up'), cor_tc.GetPUSF(events.Pileup.nTrueInt, year, 'down'))
+
+            # Lepton SFs and systs
+            weights_obj_base.add("lepSF_muon", events.sf_4l_muon, copy.deepcopy(events.sf_4l_hi_muon), copy.deepcopy(events.sf_4l_lo_muon))
+            weights_obj_base.add("lepSF_elec", events.sf_4l_elec, copy.deepcopy(events.sf_4l_hi_elec), copy.deepcopy(events.sf_4l_lo_elec))
+
+
+        # Set up the list of systematics that are handled via event weight variations
+        wgt_correction_syst_lst = [
+            "btagSFlight_correlated", "btagSFbc_correlated", f"btagSFlight_uncorrelated_{year}", f"btagSFbc_uncorrelated_{year}",
+            "lepSF_elec", "lepSF_muon", "PreFiring", "PU",
+            "renorm", "fact", "ISR", "FSR",
+        ]
+        wgt_correction_syst_lst = append_up_down_to_sys_base(wgt_correction_syst_lst)
+
+
+        ######### The rest of the processor is inside this loop over systs that affect object kinematics  ###########
+
+        obj_correction_systs = [] # Will have e.g. jes etc
+
+        # If we're doing systematics and this isn't data, we will loop over the obj correction syst lst list
+        if self._do_systematics and not isData: obj_corr_syst_var_list = ["nominal"] + obj_correction_systs
+        # Otherwise loop juse once, for nominal
+        else: obj_corr_syst_var_list = ['nominal']
+
+        # Loop over the list of systematic variations (that impact object kinematics) that we've constructed
+        for obj_corr_syst_var in obj_corr_syst_var_list:
             # Make a copy of the base weights object, so that each time through the loop we do not double count systs
             # In this loop over systs that impact kinematics, we will add to the weights objects the SFs that depend on the object kinematics
             weights_obj_base_for_kinematic_syst = copy.copy(weights_obj_base) # TODO do we need copy here?
@@ -344,17 +344,10 @@ class AnalysisProcessor(processor.ProcessorABC):
 
             #################### Jets ####################
 
-            # Jet cleaning, before any jet selection
-            ##vetos_tocleanjets = ak.with_name( ak.concatenate([tau, l_fo], axis=1), "PtEtaPhiMCandidate")
-            #vetos_tocleanjets = ak.with_name( l_wwz_t, "PtEtaPhiMCandidate")
-            #tmp = ak.cartesian([ak.local_index(jets.pt), vetos_tocleanjets.jetIdx], nested=True)
-            #cleanedJets = jets[~ak.any(tmp.slot0 == tmp.slot1, axis=-1)] # this line should go before *any selection*, otherwise lep.jetIdx is not aligned with the jet index
-
-            # Clean with dr for now
+            # Clean with dr (though another option is to use jetIdx)
             cleanedJets = os_ec.get_cleaned_collection(l_wwz_t,jets)
 
             # Selecting jets and cleaning them
-            # NOTE: The jet id cut is commented for now in objects.py for the sync
             jetptname = "pt_nom" if hasattr(cleanedJets, "pt_nom") else "pt"
             cleanedJets["is_good"] = os_tc.is_tight_jet(getattr(cleanedJets, jetptname), cleanedJets.eta, cleanedJets.jetId, pt_cut=20., eta_cut=get_ec_param("wwz_eta_j_cut"), id_cut=get_ec_param("wwz_jet_id_cut"))
             goodJets = cleanedJets[cleanedJets.is_good]
@@ -396,29 +389,10 @@ class AnalysisProcessor(processor.ProcessorABC):
             isNotBtagJetsMedium = np.invert(isBtagJetsMedium)
             nbtagsm = ak.num(goodJets[isBtagJetsMedium])
 
-            #################### Add variables into event object so that they persist ####################
-
-            # Put njets and l_fo_conept_sorted into events
-            events["njets"] = njets
-            events["l_wwz_t"] = l_wwz_t
-
-            es_ec.add4lmask_wwz(events, year, isData, histAxisName)
 
             ######### Apply SFs #########
 
             if not isData:
-                weights_obj_base_for_kinematic_syst.add("lepSF_muon", events.sf_4l_muon, copy.copy(events.sf_4l_hi_muon), copy.copy(events.sf_4l_lo_muon)) # TODO do we still need to copy in dask version
-                weights_obj_base_for_kinematic_syst.add("lepSF_elec", events.sf_4l_elec, copy.copy(events.sf_4l_hi_elec), copy.copy(events.sf_4l_lo_elec))
-
-                ### OLD implimentation from TOP-22-006
-                ## Btag SF following 1a) in https://twiki.cern.ch/twiki/bin/viewauth/CMS/BTagSFMethods
-                #bJetSF   = cor_ec.GetBTagSF(goodJets, year, 'LOOSE')
-                ###bJetEff  = cor_ec.GetBtagEff(goodJets, year, 'loose') # Need for now
-                #bJetEff_data   = bJetEff*bJetSF
-                #pMC     = ak.prod(bJetEff[isBtagJetsLoose], axis=-1) * ak.prod((1-bJetEff[isNotBtagJetsLoose]), axis=-1)
-                #pMC     = ak.where(pMC==0,1,pMC) # removeing zeroes from denominator...
-                #pData   = ak.prod(bJetEff_data[isBtagJetsLoose], axis=-1) * ak.prod((1-bJetEff_data[isNotBtagJetsLoose]), axis=-1)
-                #weights_obj_base_for_kinematic_syst.add("btagSF", pData/pMC)
 
                 ### Evaluate btag weights ###
                 jets_light = goodJets[goodJets.hadronFlavour==0]
@@ -427,18 +401,38 @@ class AnalysisProcessor(processor.ProcessorABC):
                 # Workaround to use UL16APV SFs for UL16 for light jets
                 year_light = year
                 if year == "2016": year_light = "2016APV"
+
                 btag_sf_light = cor_tc.btag_sf_eval(jets_light, "L",year_light,"deepJet_incl","central")
                 btag_sf_bc    = cor_tc.btag_sf_eval(jets_bc,    "L",year,      "deepJet_comb","central")
 
-                #btag_eff_light = bJetEff[goodJets.hadronFlavour==0] # OLD eff, Will replace with our new eff
-                #btag_eff_bc    = bJetEff[goodJets.hadronFlavour>0]  # OLD eff, Will replace with our new eff
                 btag_eff_light = cor_ec.btag_eff_eval(jets_light,"L",year)
                 btag_eff_bc = cor_ec.btag_eff_eval(jets_bc,"L",year)
 
                 wgt_light = cor_tc.get_method1a_wgt_singlewp(btag_eff_light,btag_sf_light, jets_light.btagDeepFlavB>btagwpl)
                 wgt_bc    = cor_tc.get_method1a_wgt_singlewp(btag_eff_bc,   btag_sf_bc,    jets_bc.btagDeepFlavB>btagwpl)
 
-                weights_obj_base_for_kinematic_syst.add("btagSF", wgt_light*wgt_bc)
+                wgt_btag_nom = wgt_light*wgt_bc
+                weights_obj_base_for_kinematic_syst.add("btagSF", wgt_btag_nom)
+
+                # Put the btagging up and down weight variations into the weights object
+                if self._do_systematics:
+                    for btag_sys in ["correlated", "uncorrelated"]:
+                        year_tag = f"_{year}"
+                        if btag_sys == "correlated": year_tag = ""
+
+                        btag_sf_light_up   = cor_tc.btag_sf_eval(jets_light, "L",year_light,"deepJet_incl",f"up_{btag_sys}")
+                        btag_sf_light_down = cor_tc.btag_sf_eval(jets_light, "L",year_light,"deepJet_incl",f"down_{btag_sys}")
+                        btag_sf_bc_up      = cor_tc.btag_sf_eval(jets_bc,    "L",year,      "deepJet_comb",f"up_{btag_sys}")
+                        btag_sf_bc_down    = cor_tc.btag_sf_eval(jets_bc,    "L",year,      "deepJet_comb",f"down_{btag_sys}")
+
+                        wgt_light_up   = cor_tc.get_method1a_wgt_singlewp(btag_eff_light,btag_sf_light_up, jets_light.btagDeepFlavB>btagwpl)
+                        wgt_bc_up      = cor_tc.get_method1a_wgt_singlewp(btag_eff_bc,   btag_sf_bc_up,    jets_bc.btagDeepFlavB>btagwpl)
+                        wgt_light_down = cor_tc.get_method1a_wgt_singlewp(btag_eff_light,btag_sf_light_down, jets_light.btagDeepFlavB>btagwpl)
+                        wgt_bc_down    = cor_tc.get_method1a_wgt_singlewp(btag_eff_bc,   btag_sf_bc_down,    jets_bc.btagDeepFlavB>btagwpl)
+
+                        # Note, up and down weights scaled by 1/wgt_btag_nom so that don't double count the central btag correction (i.e. don't apply it also in the case of up and down variations)
+                        weights_obj_base_for_kinematic_syst.add(f"btagSFlight_{btag_sys}{year_tag}", events.nom, wgt_light_up*wgt_bc/wgt_btag_nom, wgt_light_down*wgt_bc/wgt_btag_nom)
+                        weights_obj_base_for_kinematic_syst.add(f"btagSFbc_{btag_sys}{year_tag}",    events.nom, wgt_light*wgt_bc_up/wgt_btag_nom, wgt_light*wgt_bc_down/wgt_btag_nom)
 
 
             ######### Masks we need for the selection ##########
@@ -490,50 +484,6 @@ class AnalysisProcessor(processor.ProcessorABC):
 
 
 
-            ######### Store boolean masks with PackedSelection ##########
-
-
-            selections = PackedSelection(dtype='uint64')
-
-            # Lumi mask (for data)
-            selections.add("is_good_lumi",lumi_mask)
-
-            zeroj = (njets==0)
-
-            # For WWZ selection
-            selections.add("sr_4l_sf_A", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & sf_A))
-            selections.add("sr_4l_sf_B", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & sf_B))
-            selections.add("sr_4l_sf_C", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & sf_C))
-            selections.add("sr_4l_of_1", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_1 & mt2_mask))
-            selections.add("sr_4l_of_2", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_2 & mt2_mask))
-            selections.add("sr_4l_of_3", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_3 & mt2_mask))
-            selections.add("sr_4l_of_4", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_4))
-
-            selections.add("all_events", (events.is4lWWZ | (~events.is4lWWZ))) # All events.. this logic is a bit roundabout to just get an array of True
-            selections.add("4l_presel", (events.is4lWWZ)) # This matches the VVV looper selection (object selection and event selection)
-
-            selections.add("sr_4l_sf_presel", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & (met.pt > 65.0)))
-            selections.add("sr_4l_of_presel", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of))
-
-            # CRs
-            ww_ee = ((abs(w_lep0.pdgId) == 11) & (abs(w_lep1.pdgId) == 11))
-            ww_mm = ((abs(w_lep0.pdgId) == 13) & (abs(w_lep1.pdgId) == 13))
-            ww_em = ((abs(w_lep0.pdgId) == 11) & (abs(w_lep1.pdgId) == 13))
-            ww_me = ((abs(w_lep0.pdgId) == 13) & (abs(w_lep1.pdgId) == 11))
-            selections.add("cr_4l_btag_of",            (pass_trg & events.is4lWWZ & bmask_atleast1loose & events.wwz_presel_of))
-            selections.add("cr_4l_btag_sf",            (pass_trg & events.is4lWWZ & bmask_atleast1loose & events.wwz_presel_sf))
-            selections.add("cr_4l_btag_sf_offZ",       (pass_trg & events.is4lWWZ & bmask_atleast1loose & events.wwz_presel_sf & w_candidates_mll_far_from_z))
-            selections.add("cr_4l_btag_sf_offZ_met80", (pass_trg & events.is4lWWZ & bmask_atleast1loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & (met.pt > 80.0)))
-            selections.add("cr_4l_sf", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & (~w_candidates_mll_far_from_z)))
-
-            cat_dict = {
-                "lep_chan_lst" : [
-                    "sr_4l_sf_A","sr_4l_sf_B","sr_4l_sf_C","sr_4l_of_1","sr_4l_of_2","sr_4l_of_3","sr_4l_of_4",
-                    "sr_4l_sf_presel", "sr_4l_of_presel",
-                    "all_events","4l_presel",
-                    "cr_4l_btag_of","cr_4l_sf", "cr_4l_btag_sf", "cr_4l_btag_sf_offZ", "cr_4l_btag_sf_offZ_met80",
-                ],
-            }
 
             ######### Get variables #########
 
@@ -603,6 +553,110 @@ class AnalysisProcessor(processor.ProcessorABC):
             bdt_of_zh  = (2.0*((1.0+math.e**(-2*bdt_of_zh_raw))**(-1))) - 1.0
             bdt_sf_zh  = (2.0*((1.0+math.e**(-2*bdt_sf_zh_raw))**(-1))) - 1.0
 
+            ### BDT SRs ###
+            # SF BDT SRs
+            sf_wwz_sr1 = ( (bdt_sf_wwz > 0.9) & (bdt_sf_zh  >  0.8))
+            sf_wwz_sr2 = ( (bdt_sf_wwz > 0.9) & (bdt_sf_zh  > -0.6) & (bdt_sf_zh  < 0.8))
+            sf_zh_sr1  = ( (bdt_sf_wwz < 0.9) & (bdt_sf_wwz >  0.7) & (bdt_sf_zh  > 0.85))
+            sf_zh_sr2  = ( (bdt_sf_wwz < 0.7) & (bdt_sf_wwz >  0.6) & (bdt_sf_zh  > 0.85))
+            sf_any     = ( sf_wwz_sr1 | sf_wwz_sr2 | sf_zh_sr1 | sf_zh_sr2)
+            sf_wwz_sr3 = ( ~sf_any & ((bdt_sf_zh > 0.5) & (bdt_sf_wwz > 0.35)))
+            sf_wwz_sr4 = ( ~(sf_any | sf_wwz_sr3) & ( (bdt_sf_zh > 0.85) & (bdt_sf_wwz > -0.5)))
+            sf_zh_sr3  = ( ~(sf_any | sf_wwz_sr3 | sf_wwz_sr4) & ( bdt_sf_wwz > 0.8 ) )
+
+            # OF BDT SRs
+            of_wwz_sr1 = ( (bdt_of_wwz > 0.7) & (bdt_of_zh < -0.3) )
+            of_wwz_sr2 = ( (bdt_of_wwz < 0.7) & (bdt_of_wwz > 0.4) & (bdt_of_zh < -0.6) )
+            of_zh_sr1  = ( (bdt_of_wwz > 0.5) & (bdt_of_zh > 0.7) )
+            of_zh_sr2  = ( (bdt_of_wwz < 0.5) & (bdt_of_wwz > -0.2) & (bdt_of_zh > 0.7) )
+            of_any     = ( of_wwz_sr1 | of_wwz_sr2 | of_zh_sr1 | of_zh_sr2 )
+            of_wwz_sr3 = ( ~of_any & (bdt_of_wwz > 0.0) & (bdt_of_zh < (0.8*(bdt_of_wwz-1.))) )
+            of_wwz_sr4 = ( (~of_any & ~of_wwz_sr3) & (bdt_of_wwz > 0.0) )
+            of_zh_sr3  = ( (~of_any & ~of_wwz_sr3 & ~of_wwz_sr4) & (bdt_of_zh > 0.5) )
+            of_zh_sr4  = ( (~of_any & ~of_wwz_sr3 & ~of_wwz_sr4 & ~of_zh_sr3) & (bdt_of_zh > 0.0) & (bdt_of_wwz > -0.5) )
+
+
+
+            ######### Store boolean masks with PackedSelection ##########
+
+            selections = PackedSelection(dtype='uint64')
+
+            # Lumi mask (for data)
+            selections.add("is_good_lumi",lumi_mask)
+
+            zeroj = (njets==0)
+
+            # For WWZ selection
+            selections.add("sr_4l_sf_A", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & sf_A))
+            selections.add("sr_4l_sf_B", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & sf_B))
+            selections.add("sr_4l_sf_C", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & sf_C))
+            selections.add("sr_4l_of_1", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_1 & mt2_mask))
+            selections.add("sr_4l_of_2", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_2 & mt2_mask))
+            selections.add("sr_4l_of_3", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_3 & mt2_mask))
+            selections.add("sr_4l_of_4", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_4))
+
+            selections.add("all_events", (events.is4lWWZ | (~events.is4lWWZ))) # All events.. this logic is a bit roundabout to just get an array of True
+            selections.add("4l_presel", (events.is4lWWZ)) # This matches the VVV looper selection (object selection and event selection)
+
+            selections.add("sr_4l_sf_presel", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & (met.pt > 65.0)))
+            selections.add("sr_4l_of_presel", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of))
+
+            # For BDT SRs
+            selections.add("sr_4l_bdt_sf_wwz_sr1", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_wwz_sr1))
+            selections.add("sr_4l_bdt_sf_wwz_sr2", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_wwz_sr2))
+            selections.add("sr_4l_bdt_sf_wwz_sr3", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_wwz_sr3))
+            selections.add("sr_4l_bdt_sf_wwz_sr4", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_wwz_sr4))
+            selections.add("sr_4l_bdt_sf_zh_sr1", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_zh_sr1))
+            selections.add("sr_4l_bdt_sf_zh_sr2", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_zh_sr2))
+            selections.add("sr_4l_bdt_sf_zh_sr3", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_zh_sr3))
+
+            selections.add("sr_4l_bdt_of_wwz_sr1", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_wwz_sr1))
+            selections.add("sr_4l_bdt_of_wwz_sr2", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_wwz_sr2))
+            selections.add("sr_4l_bdt_of_wwz_sr3", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_wwz_sr3))
+            selections.add("sr_4l_bdt_of_wwz_sr4", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_wwz_sr4))
+            selections.add("sr_4l_bdt_of_zh_sr1", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_zh_sr1))
+            selections.add("sr_4l_bdt_of_zh_sr2", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_zh_sr2))
+            selections.add("sr_4l_bdt_of_zh_sr3", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_zh_sr3))
+            selections.add("sr_4l_bdt_of_zh_sr4", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_zh_sr4))
+
+            # CRs
+            ww_ee = ((abs(w_lep0.pdgId) == 11) & (abs(w_lep1.pdgId) == 11))
+            ww_mm = ((abs(w_lep0.pdgId) == 13) & (abs(w_lep1.pdgId) == 13))
+            ww_em = ((abs(w_lep0.pdgId) == 11) & (abs(w_lep1.pdgId) == 13))
+            ww_me = ((abs(w_lep0.pdgId) == 13) & (abs(w_lep1.pdgId) == 11))
+            selections.add("cr_4l_btag_of",            (pass_trg & events.is4lWWZ & bmask_atleast1loose & events.wwz_presel_of))
+            selections.add("cr_4l_btag_sf",            (pass_trg & events.is4lWWZ & bmask_atleast1loose & events.wwz_presel_sf))
+            selections.add("cr_4l_btag_sf_offZ",       (pass_trg & events.is4lWWZ & bmask_atleast1loose & events.wwz_presel_sf & w_candidates_mll_far_from_z))
+            selections.add("cr_4l_btag_sf_offZ_met80", (pass_trg & events.is4lWWZ & bmask_atleast1loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & (met.pt > 80.0)))
+            selections.add("cr_4l_sf", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & (~w_candidates_mll_far_from_z)))
+
+            bdt_sr_names = [
+                "sr_4l_bdt_sf_wwz_sr1",
+                "sr_4l_bdt_sf_wwz_sr2",
+                "sr_4l_bdt_sf_wwz_sr3",
+                "sr_4l_bdt_sf_wwz_sr4",
+                "sr_4l_bdt_sf_zh_sr1",
+                "sr_4l_bdt_sf_zh_sr2",
+                "sr_4l_bdt_sf_zh_sr3",
+
+                "sr_4l_bdt_of_wwz_sr1",
+                "sr_4l_bdt_of_wwz_sr2",
+                "sr_4l_bdt_of_wwz_sr3",
+                "sr_4l_bdt_of_wwz_sr4",
+                "sr_4l_bdt_of_zh_sr1",
+                "sr_4l_bdt_of_zh_sr2",
+                "sr_4l_bdt_of_zh_sr3",
+                "sr_4l_bdt_of_zh_sr4",
+            ]
+
+            cat_dict = {
+                "lep_chan_lst" : [
+                    "sr_4l_sf_A","sr_4l_sf_B","sr_4l_sf_C","sr_4l_of_1","sr_4l_of_2","sr_4l_of_3","sr_4l_of_4",
+                    "sr_4l_sf_presel", "sr_4l_of_presel",
+                    "all_events","4l_presel",
+                    "cr_4l_btag_of","cr_4l_sf", "cr_4l_btag_sf", "cr_4l_btag_sf_offZ", "cr_4l_btag_sf_offZ_met80",
+                ] + bdt_sr_names
+            }
 
             ######### Fill histos #########
 
@@ -650,7 +704,6 @@ class AnalysisProcessor(processor.ProcessorABC):
                 "nleps" : nleps,
                 "njets" : njets,
                 "nbtagsl" : nbtagsl,
-                "nbtagsm" : nbtagsm,
 
                 "nleps_counts" : nleps,
                 "njets_counts" : njets,
@@ -677,7 +730,7 @@ class AnalysisProcessor(processor.ProcessorABC):
             }
 
             # List the hists that are only defined for some categories
-            analysis_cats = ["sr_4l_sf_A","sr_4l_sf_B","sr_4l_sf_C","sr_4l_of_1","sr_4l_of_2","sr_4l_of_3","sr_4l_of_4"]
+            analysis_cats = ["sr_4l_sf_A","sr_4l_sf_B","sr_4l_sf_C","sr_4l_of_1","sr_4l_of_2","sr_4l_of_3","sr_4l_of_4"] + bdt_sr_names
             exclude_var_dict = {
                 "mt2" : ["all_events"],
                 "ptl4" : ["all_events"],
@@ -735,11 +788,28 @@ class AnalysisProcessor(processor.ProcessorABC):
                 "bdt_sf_zh" : ["all_events"],
             }
 
+            # Set up the list of weight fluctuations to loop over
+            # For now the syst do not depend on the category, so we can figure this out outside of the filling loop
+            wgt_var_lst = ["nominal"]
+            if self._do_systematics:
+                if not isData:
+                    if (obj_corr_syst_var != "nominal"):
+                        # In this case, we are dealing with systs that change the kinematics of the objs (e.g. JES)
+                        # So we don't want to loop over up/down weight variations here
+                        wgt_var_lst = [obj_corr_syst_var]
+                    else:
+                        # Otherwise we want to loop over the up/down weight variations
+                        wgt_var_lst = wgt_var_lst + wgt_correction_syst_lst
+
+
 
             # Loop over the hists we want to fill
             hout = {} # This is what we'll eventually return
             masks_cache = {} # So we don't need to build the same mask multiple times
             for dense_axis_name, dense_axis_vals in dense_variables_dict.items():
+                if dense_axis_name not in self._hist_lst:
+                    print(f"Skipping \"{dense_axis_name}\", it is not in the list of hists to include.")
+                    continue
                 #print("\ndense_axis_name,vals",dense_axis_name)
                 #print("dense_axis_name,vals",dense_axis_vals)
 
@@ -747,59 +817,70 @@ class AnalysisProcessor(processor.ProcessorABC):
                 hout[dense_axis_name] = hda.Hist(
                     hist.axis.StrCategory([], growth=True, name="process", label="process"),
                     hist.axis.StrCategory([], growth=True, name="category", label="category"),
+                    hist.axis.StrCategory([], growth=True, name="systematic", label="systematic"),
                     self._dense_axes_dict[dense_axis_name],
                     storage="weight", # Keeps track of sumw2
                     name="Counts",
                 )
 
-                # Decide if we are filling this hist with weight or raw event counts
-                if isData or dense_axis_name.endswith("_counts"): weights = events.nom
-                #else: weights = weights_obj_base_for_kinematic_syst.partial_weight(include=["norm"])
-                else: weights = weights_obj_base_for_kinematic_syst.weight(None)
+                # Loop over weight fluctuations
+                for wgt_fluct in wgt_var_lst:
 
-                # Loop over categories
-                for sr_cat in cat_dict["lep_chan_lst"]:
+                    # Get the appropriate weight fluctuation
+                    if (wgt_fluct == "nominal") or (wgt_fluct in obj_corr_syst_var_list):
+                        # In the case of "nominal", no weight systematic variation is used
+                        weight = weights_obj_base_for_kinematic_syst.weight(None)
+                    else:
+                        # Otherwise get the weight from the Weights object
+                        weight = weights_obj_base_for_kinematic_syst.weight(wgt_fluct)
 
-                    # Skip filling if this variable is not relevant for this selection
-                    if (dense_axis_name in exclude_var_dict) and (sr_cat in exclude_var_dict[dense_axis_name]): continue
+                    # Loop over categories
+                    for sr_cat in cat_dict["lep_chan_lst"]:
 
-                    # Make the cuts mask
-                    cuts_lst = [sr_cat]
-                    if isData: cuts_lst.append("is_good_lumi") # Apply golden json requirements if this is data
+                        # Skip filling if this variable is not relevant for this selection
+                        if (dense_axis_name in exclude_var_dict) and (sr_cat in exclude_var_dict[dense_axis_name]): continue
 
-                    # Do not recalculate the mask if we've already computed it
-                    #if tuple(cuts_lst) in masks_cache:
-                    #    all_cuts_mask = masks_cache[tuple(cuts_lst)]
-                    #else:
-                    #    masks_cache[tuple(cuts_lst)] = selections.all(*cuts_lst)
-                    #    all_cuts_mask = masks_cache[tuple(cuts_lst)]
-                    all_cuts_mask = selections.all(*cuts_lst)
+                        # If this is a counts hist, forget the weights and just fill with unit weights
+                        if dense_axis_name.endswith("_counts"): weight = events.nom
+                        #else: weights = weights_obj_base_for_kinematic_syst.partial_weight(include=["norm"]) # For testing
+                        #else: weights = weights_obj_base_for_kinematic_syst.weight(None) # For testing
 
-                    #run = events.run[all_cuts_mask]
-                    #luminosityBlock = events.luminosityBlock[all_cuts_mask]
-                    #event = events.event[all_cuts_mask]
-                    #w = weights[all_cuts_mask]
-                    #if dense_axis_name == "njets":
-                    #    print("STARTPRINT")
-                    #    for i,j in enumerate(w):
-                    #        out_str = f"PRINTTAG {i} {dense_axis_name} {year} {sr_cat} {event[i]} {run[i]} {luminosityBlock[i]} {w[i]}"
-                    #        print(out_str,file=sys.stderr,flush=True)
-                    #    print("ENDPRINT")
-                    #    print("ENDPRINT")
-                    #print("\ndense_axis_name",dense_axis_name)
-                    #print("sr_cat",sr_cat)
-                    #print("dense_axis_vals[all_cuts_mask]",dense_axis_vals[all_cuts_mask])
-                    #print("this")
+                        # Make the cuts mask
+                        cuts_lst = [sr_cat]
+                        if isData: cuts_lst.append("is_good_lumi") # Apply golden json requirements if this is data
+                        all_cuts_mask = selections.all(*cuts_lst)
 
-                    # Fill the histos
-                    axes_fill_info_dict = {
-                        dense_axis_name : dense_axis_vals[all_cuts_mask],
-                        "weight"        : weights[all_cuts_mask],
-                        "process"       : histAxisName,
-                        "category"      : sr_cat,
-                        #"systematic"    : "nominal",
-                    }
-                    hout[dense_axis_name].fill(**axes_fill_info_dict)
+                        # Do not recalculate the mask if we've already computed it
+                        #if tuple(cuts_lst) in masks_cache:
+                        #    all_cuts_mask = masks_cache[tuple(cuts_lst)]
+                        #else:
+                        #    masks_cache[tuple(cuts_lst)] = selections.all(*cuts_lst)
+                        #    all_cuts_mask = masks_cache[tuple(cuts_lst)]
+
+                        #run = events.run[all_cuts_mask]
+                        #luminosityBlock = events.luminosityBlock[all_cuts_mask]
+                        #event = events.event[all_cuts_mask]
+                        #w = weights[all_cuts_mask]
+                        #if dense_axis_name == "njets":
+                        #    print("\nSTARTPRINT")
+                        #    for i,j in enumerate(w):
+                        #        out_str = f"PRINTTAG {i} {dense_axis_name} {year} {sr_cat} {event[i]} {run[i]} {luminosityBlock[i]} {w[i]}"
+                        #        print(out_str,file=sys.stderr,flush=True)
+                        #    print("ENDPRINT\n")
+                        #print("\ndense_axis_name",dense_axis_name)
+                        #print("sr_cat",sr_cat)
+                        #print("dense_axis_vals[all_cuts_mask]",dense_axis_vals[all_cuts_mask])
+                        #print("end")
+
+                        # Fill the histos
+                        axes_fill_info_dict = {
+                            dense_axis_name : dense_axis_vals[all_cuts_mask],
+                            "weight"        : weight[all_cuts_mask],
+                            "process"       : histAxisName,
+                            "category"      : sr_cat,
+                            "systematic"    : wgt_fluct,
+                        }
+                        hout[dense_axis_name].fill(**axes_fill_info_dict)
 
         return hout
 
