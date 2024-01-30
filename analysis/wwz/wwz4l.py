@@ -841,7 +841,7 @@ class AnalysisProcessor(processor.ProcessorABC):
                         if (dense_axis_name in exclude_var_dict) and (sr_cat in exclude_var_dict[dense_axis_name]): continue
 
                         # If this is a counts hist, forget the weights and just fill with unit weights
-                        if dense_axis_name.endswith("_counts"): weight = events.nom
+                        if isData or dense_axis_name.endswith("_counts"): weight = events.nom
                         #else: weights = weights_obj_base_for_kinematic_syst.partial_weight(include=["norm"]) # For testing
                         #else: weights = weights_obj_base_for_kinematic_syst.weight(None) # For testing
 
@@ -851,11 +851,11 @@ class AnalysisProcessor(processor.ProcessorABC):
                         all_cuts_mask = selections.all(*cuts_lst)
 
                         # Do not recalculate the mask if we've already computed it
-                        #if tuple(cuts_lst) in masks_cache:
-                        #    all_cuts_mask = masks_cache[tuple(cuts_lst)]
-                        #else:
-                        #    masks_cache[tuple(cuts_lst)] = selections.all(*cuts_lst)
-                        #    all_cuts_mask = masks_cache[tuple(cuts_lst)]
+                        if tuple(cuts_lst) in masks_cache:
+                            all_cuts_mask = masks_cache[tuple(cuts_lst)]
+                        else:
+                            masks_cache[tuple(cuts_lst)] = selections.all(*cuts_lst)
+                            all_cuts_mask = masks_cache[tuple(cuts_lst)]
 
                         #run = events.run[all_cuts_mask]
                         #luminosityBlock = events.luminosityBlock[all_cuts_mask]
