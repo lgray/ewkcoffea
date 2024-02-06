@@ -315,41 +315,48 @@ if __name__ == '__main__':
 
 
     #### Try with distributed Client ####
+    t_beforepreprocess = time.time()
 
     #with dask.config.set({"scheduler": "sync"}): # Single thread
     #with Client() as _: # distributed Client scheduler
-    with Client() as client:
+    #with Client() as client:
+    with Client(n_workers=8, threads_per_worker=1) as client:
 
         # Run preprocess
         print("\nRunning preprocess...")
         dataset_runnable, dataset_updated = preprocess(
             fileset,
-            maybe_step_size=50_000,
+            step_size=50_000,
             align_clusters=False,
             files_per_batch=1,
-            #skip_bad_files=True,
-            #calculate_form=True,
+            save_form=True,
         )
         dataset_runnable = filter_files(dataset_runnable)
 
+        t_beforeapplytofileset = time.time()
         # Run apply_to_fileset
         print("\nRunning apply_to_fileset...")
         histos_to_compute, reports = apply_to_fileset(
             processor_instance,
             dataset_runnable,
-            uproot_options={"allow_read_errors_with_report": True}
+            uproot_options={"allow_read_errors_with_report": True},
+            parallelize_with_dask=True,
         )
 
-        # Check columns to be read
-        print("\nRunning necessary_columns...")
-        columns_read = dak.necessary_columns(histos_to_compute[list(histos_to_compute.keys())[0]])
-        print(columns_read)
+        print("DONE with apply to fileset")
+        exit()
 
+        # Check columns to be read
+        #print("\nRunning necessary_columns...")
+        #columns_read = dak.necessary_columns(histos_to_compute[list(histos_to_compute.keys())[0]])
+        #print(columns_read)
+
+        t_beforecompute = time.time()
         # Compute
         print("\nRunning compute...")
         output_futures, report_futures = {}, {}
         for key in histos_to_compute:
-            output_futures[key], report_futures[key] = client.compute((histos_to_compute[key], reports[key],)) # , scheduler=taskvine
+            output_futures[key], report_futures[key] = client.compute((histos_to_compute[key], reports[key],))
 
         coutputs, creports = client.gather((output_futures, report_futures,))
 
@@ -359,7 +366,7 @@ if __name__ == '__main__':
     do_tv = 0
     if do_tv:
 
-        fdict = {"UL17_WWZJetsTo4L2Nu_forCI": ["/home/k.mohrman/coffea_dir/migrate_to_coffea2023_repo/ewkcoffea/analysis/wwz/output_1.root"]}
+        #fdict = {"UL17_WWZJetsTo4L2Nu_forCI": ["/home/k.mohrman/coffea_dir/migrate_to_coffea2023_repo/ewkcoffea/analysis/wwz/output_1.root"]}
 
         # Create dict of events objects
         print("Number of datasets:",len(fdict))
@@ -371,6 +378,7 @@ if __name__ == '__main__':
                 metadata={"dataset": name},
             ).events()
 
+        t_beforeapplytofileset = time.time()
         # Get and compute the histograms
         histos_to_compute = {}
         for json_name in fdict.keys():
@@ -379,12 +387,38 @@ if __name__ == '__main__':
 
         m = DaskVine([9123,9128], name=f"coffea-vine-{os.environ['USER']}")
 
-        print("Compute histos")
-        #output = dask.compute(histos_to_compute)[0] # Output of dask.compute is a tuple
-        coutputs = dask.compute(histos_to_compute, scheduler=m.get, resources={"cores": 1}, resources_mode=None, lazy_transfers=True)
+        t_beforecompute = time.time()
+        #coutputs = dask.compute(histos_to_compute)[0] # Output of dask.compute is a tuple
+        #coutputs = dask.compute(histos_to_compute, scheduler=m.get, resources={"cores": 1}, resources_mode=None, lazy_transfers=True)
+        #with Client() as _:
+            #coutputs = dask.compute(histos_to_compute)
+
+        #proxy = m.declare_file(f"/tmp/x509up_u{os.getuid()}", cache=True)
+        #coutputs = dask.compute(
+        #    histos_to_compute,
+        #    scheduler=m.get,
+        #    resources={"cores": 1},
+        #    resources_mode=None,
+        #    lazy_transfers=True,
+        #    extra_files={proxy: "proxy.pem"},
+        #    #env_vars={"X509_USER_PROXY": "proxy.pem"},
+        #)
 
 
+    t_end = time.time()
     dt = time.time() - tstart
+
+    time_for_preprocess = t_beforeapplytofileset - t_beforepreprocess
+    time_for_applytofset = t_beforecompute - t_beforeapplytofileset
+    time_for_compute = t_end - t_beforecompute
+    time_total = time_for_preprocess + time_for_applytofset + time_for_compute
+    print("")
+    print("time_pre",t_beforepreprocess-tstart)
+    print("time_for_preprocess",time_for_preprocess)
+    print("time_for_applytofset",time_for_applytofset)
+    print("time_for_compute",time_for_compute)
+    print("time_total",time_total)
+    print("dt",dt)
 
     # Save the output
     if not os.path.isdir(outpath): os.system("mkdir -p %s"%outpath)
