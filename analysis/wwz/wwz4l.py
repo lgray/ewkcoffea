@@ -38,6 +38,13 @@ def append_up_down_to_sys_base(sys_lst_in):
         sys_lst_out.append(f"{s}Down")
     return sys_lst_out
 
+
+from memory_profiler import profile
+
+import objgraph
+
+import sys
+
 class AnalysisProcessor(processor.ProcessorABC):
 
     def __init__(self, samples, wc_names_lst=[], hist_lst=None, ecut_threshold=None, do_errors=False, do_systematics=False, split_by_lepton_flavor=False, skip_signal_regions=False, skip_control_regions=False, muonSyst='nominal', dtype=np.float32):
@@ -141,6 +148,7 @@ class AnalysisProcessor(processor.ProcessorABC):
 
 
     # Main function: run on a given dataset
+    #@profile
     def process(self, events):
 
         # Loop over samples and fill histos
@@ -482,9 +490,6 @@ class AnalysisProcessor(processor.ProcessorABC):
             mt2_val = es_ec.get_mt2(w_lep0,w_lep1,met)
             mt2_mask = ak.fill_none(mt2_val>25.0,False)
 
-
-
-
             ######### Get variables #########
 
             l0pt = l0.pt
@@ -587,48 +592,62 @@ class AnalysisProcessor(processor.ProcessorABC):
             zeroj = (njets==0)
 
             # For WWZ selection
-            selections.add("sr_4l_sf_A", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & sf_A))
-            selections.add("sr_4l_sf_B", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & sf_B))
-            selections.add("sr_4l_sf_C", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & sf_C))
-            selections.add("sr_4l_of_1", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_1 & mt2_mask))
-            selections.add("sr_4l_of_2", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_2 & mt2_mask))
-            selections.add("sr_4l_of_3", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_3 & mt2_mask))
-            selections.add("sr_4l_of_4", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_4))
+            trigger_and_basic_cuts = (lumi_mask & pass_trg & events.is4lWWZ) if isData else (pass_trg & events.is4lWWZ)
+            tabc_with_bmask0loose = trigger_and_basic_cuts & bmask_exactly0loose
+            tabc_with_bmask1loose = trigger_and_basic_cuts & bmask_atleast1loose
+            tabc_b0l_wwz_presel_sf = tabc_with_bmask0loose & events.wwz_presel_sf
+            tabc_b0l_sf_far_z = tabc_b0l_wwz_presel_sf & w_candidates_mll_far_from_z
 
-            selections.add("all_events", (events.is4lWWZ | (~events.is4lWWZ))) # All events.. this logic is a bit roundabout to just get an array of True
+            tabc_b0l_wwz_presel_of = tabc_with_bmask0loose & events.wwz_presel_of
+            tabc_b0l_wwz_of_mt2 = tabc_b0l_wwz_presel_of & mt2_mask
+
+            tabc_b1l_wwz_presel_of = tabc_with_bmask1loose & events.wwz_presel_of
+            tabc_b1l_wwz_presel_sf = tabc_with_bmask1loose & events.wwz_presel_sf
+
+            tabc_b1l_sf_far_z = tabc_b1l_wwz_presel_sf & w_candidates_mll_far_from_z
+            
+            selections.add("sr_4l_sf_A", (tabc_b0l_sf_far_z & sf_A))
+            selections.add("sr_4l_sf_B", (tabc_b0l_sf_far_z & sf_B))
+            selections.add("sr_4l_sf_C", (tabc_b0l_sf_far_z & sf_C))
+            selections.add("sr_4l_of_1", (tabc_b0l_wwz_of_mt2 & of_1))
+            selections.add("sr_4l_of_2", (tabc_b0l_wwz_of_mt2 & of_2))
+            selections.add("sr_4l_of_3", (tabc_b0l_wwz_of_mt2 & of_3))
+            selections.add("sr_4l_of_4", (tabc_b0l_wwz_presel_of & of_4))
+
+            selections.add("all_events", (ak.ones_like(events.is4lWWZ)))
             selections.add("4l_presel", (events.is4lWWZ)) # This matches the VVV looper selection (object selection and event selection)
-
-            selections.add("sr_4l_sf_presel", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & (met.pt > 65.0)))
-            selections.add("sr_4l_of_presel", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of))
+            
+            selections.add("sr_4l_sf_presel", (tabc_b0l_sf_far_z & (met.pt > 65.0)))
+            selections.add("sr_4l_of_presel", (tabc_b0l_wwz_presel_of))
 
             # For BDT SRs
-            selections.add("sr_4l_bdt_sf_wwz_sr1", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_wwz_sr1))
-            selections.add("sr_4l_bdt_sf_wwz_sr2", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_wwz_sr2))
-            selections.add("sr_4l_bdt_sf_wwz_sr3", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_wwz_sr3))
-            selections.add("sr_4l_bdt_sf_wwz_sr4", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_wwz_sr4))
-            selections.add("sr_4l_bdt_sf_zh_sr1", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_zh_sr1))
-            selections.add("sr_4l_bdt_sf_zh_sr2", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_zh_sr2))
-            selections.add("sr_4l_bdt_sf_zh_sr3", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & sf_zh_sr3))
+            selections.add("sr_4l_bdt_sf_wwz_sr1", (tabc_b0l_wwz_presel_of & sf_wwz_sr1))
+            selections.add("sr_4l_bdt_sf_wwz_sr2", (tabc_b0l_wwz_presel_of & sf_wwz_sr2))
+            selections.add("sr_4l_bdt_sf_wwz_sr3", (tabc_b0l_wwz_presel_of & sf_wwz_sr3))
+            selections.add("sr_4l_bdt_sf_wwz_sr4", (tabc_b0l_wwz_presel_of & sf_wwz_sr4))
+            selections.add("sr_4l_bdt_sf_zh_sr1", (tabc_b0l_wwz_presel_of & sf_zh_sr1))
+            selections.add("sr_4l_bdt_sf_zh_sr2", (tabc_b0l_wwz_presel_of & sf_zh_sr2))
+            selections.add("sr_4l_bdt_sf_zh_sr3", (tabc_b0l_wwz_presel_of & sf_zh_sr3))
 
-            selections.add("sr_4l_bdt_of_wwz_sr1", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_wwz_sr1))
-            selections.add("sr_4l_bdt_of_wwz_sr2", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_wwz_sr2))
-            selections.add("sr_4l_bdt_of_wwz_sr3", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_wwz_sr3))
-            selections.add("sr_4l_bdt_of_wwz_sr4", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_wwz_sr4))
-            selections.add("sr_4l_bdt_of_zh_sr1", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_zh_sr1))
-            selections.add("sr_4l_bdt_of_zh_sr2", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_zh_sr2))
-            selections.add("sr_4l_bdt_of_zh_sr3", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_zh_sr3))
-            selections.add("sr_4l_bdt_of_zh_sr4", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_of & of_zh_sr4))
+            selections.add("sr_4l_bdt_of_wwz_sr1", (tabc_b0l_wwz_presel_of & of_wwz_sr1))
+            selections.add("sr_4l_bdt_of_wwz_sr2", (tabc_b0l_wwz_presel_of & of_wwz_sr2))
+            selections.add("sr_4l_bdt_of_wwz_sr3", (tabc_b0l_wwz_presel_of & of_wwz_sr3))
+            selections.add("sr_4l_bdt_of_wwz_sr4", (tabc_b0l_wwz_presel_of & of_wwz_sr4))
+            selections.add("sr_4l_bdt_of_zh_sr1", (tabc_b0l_wwz_presel_of & of_zh_sr1))
+            selections.add("sr_4l_bdt_of_zh_sr2", (tabc_b0l_wwz_presel_of & of_zh_sr2))
+            selections.add("sr_4l_bdt_of_zh_sr3", (tabc_b0l_wwz_presel_of & of_zh_sr3))
+            selections.add("sr_4l_bdt_of_zh_sr4", (tabc_b0l_wwz_presel_of & of_zh_sr4))
 
             # CRs
             ww_ee = ((abs(w_lep0.pdgId) == 11) & (abs(w_lep1.pdgId) == 11))
             ww_mm = ((abs(w_lep0.pdgId) == 13) & (abs(w_lep1.pdgId) == 13))
             ww_em = ((abs(w_lep0.pdgId) == 11) & (abs(w_lep1.pdgId) == 13))
             ww_me = ((abs(w_lep0.pdgId) == 13) & (abs(w_lep1.pdgId) == 11))
-            selections.add("cr_4l_btag_of",            (pass_trg & events.is4lWWZ & bmask_atleast1loose & events.wwz_presel_of))
-            selections.add("cr_4l_btag_sf",            (pass_trg & events.is4lWWZ & bmask_atleast1loose & events.wwz_presel_sf))
-            selections.add("cr_4l_btag_sf_offZ",       (pass_trg & events.is4lWWZ & bmask_atleast1loose & events.wwz_presel_sf & w_candidates_mll_far_from_z))
-            selections.add("cr_4l_btag_sf_offZ_met80", (pass_trg & events.is4lWWZ & bmask_atleast1loose & events.wwz_presel_sf & w_candidates_mll_far_from_z & (met.pt > 80.0)))
-            selections.add("cr_4l_sf", (pass_trg & events.is4lWWZ & bmask_exactly0loose & events.wwz_presel_sf & (~w_candidates_mll_far_from_z)))
+            selections.add("cr_4l_btag_of",            (tabc_b1l_wwz_presel_of))
+            selections.add("cr_4l_btag_sf",            (tabc_b1l_wwz_presel_sf))
+            selections.add("cr_4l_btag_sf_offZ",       (tabc_b1l_sf_far_z))
+            selections.add("cr_4l_btag_sf_offZ_met80", (tabc_b1l_sf_far_z & (met.pt > 80.0)))
+            selections.add("cr_4l_sf", (tabc_b0l_wwz_presel_sf & (~w_candidates_mll_far_from_z)))
 
             bdt_sr_names = [
                 "sr_4l_bdt_sf_wwz_sr1",
@@ -729,6 +748,20 @@ class AnalysisProcessor(processor.ProcessorABC):
                 "bdt_sf_zh" : bdt_sf_zh,
             }
 
+            dense_variables_array = ak.zip(
+                dense_variables_dict,
+                depth_limit=1,
+            )
+
+            dense_variables_array_with_cuts = {}
+            dense_variables_array_with_cuts["lep_chan_lst"] = {}
+            cached_masks = {"lep_chan_lst": {}}
+            for sr_cat in cat_dict["lep_chan_lst"]:
+                mask = selections.all(sr_cat)
+                cached_masks["lep_chan_lst"][sr_cat] = mask
+                dense_variables_array_with_cuts["lep_chan_lst"][sr_cat] = dense_variables_array[mask]
+                
+            
             # List the hists that are only defined for some categories
             analysis_cats = ["sr_4l_sf_A","sr_4l_sf_B","sr_4l_sf_C","sr_4l_of_1","sr_4l_of_2","sr_4l_of_3","sr_4l_of_4"] + bdt_sr_names
             exclude_var_dict = {
@@ -800,12 +833,16 @@ class AnalysisProcessor(processor.ProcessorABC):
                     else:
                         # Otherwise we want to loop over the up/down weight variations
                         wgt_var_lst = wgt_var_lst + wgt_correction_syst_lst
-
+                
 
 
             # Loop over the hists we want to fill
             hout = {} # This is what we'll eventually return
-            masks_cache = {} # So we don't need to build the same mask multiple times
+            masks_cache = {}
+            weights_cache = {} # work around for Weights object making a new task graph each time!
+            masked_weights_cache = {} # ditto            
+            #print("growth before histogram loop")
+            #objgraph.show_growth(limit=50, shortnames=False)
             for dense_axis_name, dense_axis_vals in dense_variables_dict.items():
                 if dense_axis_name not in self._hist_lst:
                     print(f"Skipping \"{dense_axis_name}\", it is not in the list of hists to include.")
@@ -832,7 +869,9 @@ class AnalysisProcessor(processor.ProcessorABC):
                         weight = weights_obj_base_for_kinematic_syst.weight(None)
                     else:
                         # Otherwise get the weight from the Weights object
-                        weight = weights_obj_base_for_kinematic_syst.weight(wgt_fluct)
+                        if wgt_fluct not in weights_cache:
+                            weights_cache[wgt_fluct] = weights_obj_base_for_kinematic_syst.weight(wgt_fluct)
+                        weight = weights_cache[wgt_fluct]
 
                     # Loop over categories
                     for sr_cat in cat_dict["lep_chan_lst"]:
@@ -841,22 +880,22 @@ class AnalysisProcessor(processor.ProcessorABC):
                         if (dense_axis_name in exclude_var_dict) and (sr_cat in exclude_var_dict[dense_axis_name]): continue
 
                         # If this is a counts hist, forget the weights and just fill with unit weights
-                        if isData or dense_axis_name.endswith("_counts"): weight = events.nom
+                        if isData or dense_axis_name.endswith("_counts"): weight = None #events.nom
                         #else: weights = weights_obj_base_for_kinematic_syst.partial_weight(include=["norm"]) # For testing
                         #else: weights = weights_obj_base_for_kinematic_syst.weight(None) # For testing
 
                         # Make the cuts mask
-                        cuts_lst = [sr_cat]
-                        if isData: cuts_lst.append("is_good_lumi") # Apply golden json requirements if this is data
-                        all_cuts_mask = selections.all(*cuts_lst)
+                        cuts_lst = [sr_cat] 
+                        #if isData: cuts_lst.append("is_good_lumi") # Apply golden json requirements if this is data
+                        all_cuts_mask = None #selections.all(*cuts_lst)
 
+                        masked_weights = None
+                        cache_key = tuple(cuts_lst + [wgt_fluct])
                         # Do not recalculate the mask if we've already computed it
-                        if tuple(cuts_lst) in masks_cache:
-                            all_cuts_mask = masks_cache[tuple(cuts_lst)]
-                        else:
-                            masks_cache[tuple(cuts_lst)] = selections.all(*cuts_lst)
-                            all_cuts_mask = masks_cache[tuple(cuts_lst)]
-
+                        if cache_key not in masks_cache:
+                            weights_cache[cache_key] = None if weight is None else weight[cached_masks["lep_chan_lst"][sr_cat]]
+                        masked_weights = weights_cache[cache_key]
+                            
                         #run = events.run[all_cuts_mask]
                         #luminosityBlock = events.luminosityBlock[all_cuts_mask]
                         #event = events.event[all_cuts_mask]
@@ -874,14 +913,29 @@ class AnalysisProcessor(processor.ProcessorABC):
 
                         # Fill the histos
                         axes_fill_info_dict = {
-                            dense_axis_name : dense_axis_vals[all_cuts_mask],
-                            "weight"        : weight[all_cuts_mask],
+                            dense_axis_name : dense_variables_array_with_cuts["lep_chan_lst"][sr_cat][dense_axis_name],
+                            "weight"        : masked_weights,
                             "process"       : histAxisName,
                             "category"      : sr_cat,
                             "systematic"    : wgt_fluct,
                         }
                         hout[dense_axis_name].fill(**axes_fill_info_dict)
+                    #print("growth after regions loop")
+                    #objgraph.show_growth(limit=50, shortnames=False)
+                    #objgraph.show_refs(
+                    #    objgraph.by_type("hist.dask.hist.Hist"),
+                    #    filename="dask-hist-refs.png",
+                    #)
+                    #objgraph.show_backrefs(
+		    #   objgraph.by_type("hist.dask.hist.Hist"),
+                    #    filename="dask-hist-backrefs.png",
+                    #)
+                        
 
+                    #sys.exit()
+        print(sum(len(hout[key].dask.layers) for key in hout))
+        import dask
+        print(len(dask.optimize(hout)[0]["met"].dask.layers))
         return hout
 
     def postprocess(self, accumulator):

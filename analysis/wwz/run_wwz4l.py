@@ -9,6 +9,8 @@ import os
 import dask
 import dask_awkward as dak
 from distributed import Client
+from dask.diagnostics import ProgressBar
+
 
 from coffea.nanoevents import NanoAODSchema
 from coffea.nanoevents import NanoEventsFactory
@@ -19,7 +21,7 @@ from coffea.dataset_tools import filter_files
 
 import topcoffea.modules.remote_environment as remote_environment
 
-from ndcctools.taskvine import DaskVine
+#from ndcctools.taskvine import DaskVine
 
 import wwz4l
 
@@ -310,7 +312,6 @@ if __name__ == '__main__':
         for fpath in fpaths:
             fileset[name]["files"][fpath] = {"object_path": "Events"}
             fileset[name]["metadata"] = {"dataset": name}
-    print(fileset)
     print("Number of datasets:",len(fdict))
 
 
@@ -320,27 +321,38 @@ if __name__ == '__main__':
     #with dask.config.set({"scheduler": "sync"}): # Single thread
     #with Client() as _: # distributed Client scheduler
     #with Client() as client:
-    with Client(n_workers=8, threads_per_worker=1) as client:
+    with Client(n_workers=10, threads_per_worker=1, memory_limit="8 GB") as client:
 
         # Run preprocess
         print("\nRunning preprocess...")
-        dataset_runnable, dataset_updated = preprocess(
-            fileset,
-            step_size=50_000,
-            align_clusters=False,
-            files_per_batch=1,
-            save_form=True,
-        )
+        #dataset_runnable, dataset_updated = preprocess(
+        #    fileset,
+        #    step_size=50_000,
+        #    align_clusters=False,
+        #    skip_bad_files=True,
+        #    files_per_batch=1,
+        #    save_form=True,
+        #)
+
+        with gzip.open("dataset_runnable_feb07_2024_ewkcoffea.json.gz") as fin:
+            dataset_runnable = json.load(fin)
+        
         dataset_runnable = filter_files(dataset_runnable)
 
+        #dataset_keys = list(dataset_runnable.keys())[:2]
+        
+        #dataset_runnable = {
+        #    key: dataset_runnable[key] for key in dataset_keys
+        #}            
+        
         t_beforeapplytofileset = time.time()
         # Run apply_to_fileset
         print("\nRunning apply_to_fileset...")
-        histos_to_compute, reports = apply_to_fileset(
+        events, histos_to_compute, reports = apply_to_fileset(
             processor_instance,
             dataset_runnable,
             uproot_options={"allow_read_errors_with_report": True},
-            parallelize_with_dask=True,
+            parallelize_with_dask=False,
         )
 
         print("DONE with apply to fileset")

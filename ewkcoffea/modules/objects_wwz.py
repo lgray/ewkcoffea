@@ -1,6 +1,8 @@
 import numpy as np
 import awkward as ak
 
+import dask.delayed
+
 from coffea.ml_tools.xgboost_wrapper import xgboost_wrapper
 
 from topcoffea.modules.paths import topcoffea_path
@@ -16,18 +18,103 @@ def get_cleaned_collection(obj_collection_a,obj_collection_b,drcut=0.4):
     return obj_collection_b[mask]
 
 
+# From https://github.com/CoffeaTeam/coffea/blob/master/tests/test_ml_tools.py#L169-L174                                                                                                                                                      
+class xgboost_test(xgboost_wrapper):
+
+    def __init__(self, fname, feature_list):
+        self.feature_list = feature_list
+
+        super().__init__(fname)
+    
+    def prepare_awkward(self, events):
+        ak = self.get_awkward_lib(events)
+        ret = ak.concatenate(
+            [events[name][:, np.newaxis] for name in self.feature_list], axis=1
+        )
+        return [], dict(data=ret)
+
+wwz_zg_feats = [
+    "m_ll",
+    "dPhi_4Lep_MET",
+    "dPhi_Zcand_MET",
+    "dPhi_WW_MET",
+    "dR_Wcands",
+    "dR_Zcands",
+    "dR_WW_Z",
+    "MET",
+    "MT2",
+    "Pt4l",
+    "STLepHad",
+    "STLep",
+    "leading_Zcand_pt",
+    "subleading_Zcand_pt",
+    "leading_Wcand_pt",
+    "subleading_Wcand_pt"
+]
+    
+xgb_paths = [
+    (ewkcoffea_path("data/wwz_zh_bdt/of_WWZ.json"), wwz_zg_feats),
+    (ewkcoffea_path("data/wwz_zh_bdt/sf_WWZ.json"), wwz_zg_feats),
+    (ewkcoffea_path("data/wwz_zh_bdt/of_ZH.json"), wwz_zg_feats),
+    (ewkcoffea_path("data/wwz_zh_bdt/sf_ZH.json"), wwz_zg_feats),
+]
+
+ulbases = ["UL16", "UL16APV", "UL17", "UL18"]
+
+top_feature_list_el = [
+    "pt",
+    "eta",
+    "jetNDauCharged",
+    "miniPFRelIso_chg",
+    "miniPFRelIso_diff_all_chg",
+    "jetPtRelv2",
+    "jetPtRatio",
+    "pfRelIso03_all",
+    "ak4jet:btagDeepFlavB",
+    "sip3d",
+    "log_abs_dxy",
+    "log_abs_dz",
+    "mvaFall17V2noIso",
+]
+
+top_feature_list_mu = [
+    "pt",
+    "eta",
+    "jetNDauCharged",
+    "miniPFRelIso_chg",
+    "miniPFRelIso_diff_all_chg",
+    "jetPtRelv2",
+    "jetPtRatio",
+    "pfRelIso03_all",
+    "ak4jet:btagDeepFlavB",
+    "sip3d",
+    "log_abs_dxy",
+    "log_abs_dz",
+    "segmentComp",
+]
+
+for ulbase in ulbases:
+    xgb_paths.append(
+        (
+            topcoffea_path(f"data/topmva/lepid_weights/el_TOP{ulbase}_XGB.weights.bin"),
+            top_feature_list_el,
+        )
+    )
+    xgb_paths.append(
+        (
+            topcoffea_path(f"data/topmva/lepid_weights/mu_TOP{ulbase}_XGB.weights.bin"),
+            top_feature_list_mu,
+        )
+    )
+
+xgb_wrappers = {apath : xgboost_test(apath, feats) for apath, feats in xgb_paths}
+for key in xgb_wrappers:
+    wrap = xgb_wrappers[key]
+    setattr(wrap, "_delayed_wrapper", dask.delayed(wrap))
+
 # Wrapper around evaluation of lep ID bdt, note returns flat
 # Note this could potentially go somewhere more general like topcoffea modules
 def xgb_eval_wrapper(feature_list,in_vals_flat_dict,model_fpath):
-
-    # From https://github.com/CoffeaTeam/coffea/blob/master/tests/test_ml_tools.py#L169-L174
-    class xgboost_test(xgboost_wrapper):
-        def prepare_awkward(self, events):
-            ak = self.get_awkward_lib(events)
-            ret = ak.concatenate(
-                [events[name][:, np.newaxis] for name in feature_list], axis=1
-            )
-            return [], dict(data=ret)
 
     # Reshape the input array
     # Note that if the inputs are object level like pt, then should have already flattned before passing to this function
@@ -47,8 +134,7 @@ def xgb_eval_wrapper(feature_list,in_vals_flat_dict,model_fpath):
     )
 
     # Get the score
-    xgb_wrap = xgboost_test(model_fpath)
-    score = xgb_wrap(input_arr)
+    score = xgb_wrappers[model_fpath](input_arr)
 
     return score
 
