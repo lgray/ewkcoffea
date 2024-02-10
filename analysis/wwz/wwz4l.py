@@ -873,69 +873,80 @@ class AnalysisProcessor(processor.ProcessorABC):
                             weights_cache[wgt_fluct] = weights_obj_base_for_kinematic_syst.weight(wgt_fluct)
                         weight = weights_cache[wgt_fluct]
 
-                    # Loop over categories
-                    for sr_cat in cat_dict["lep_chan_lst"]:
 
-                        # Skip filling if this variable is not relevant for this selection
-                        if (dense_axis_name in exclude_var_dict) and (sr_cat in exclude_var_dict[dense_axis_name]): continue
+                # Loop over categories
+                for sr_cat in cat_dict["lep_chan_lst"]:
 
-                        # If this is a counts hist, forget the weights and just fill with unit weights
-                        if isData or dense_axis_name.endswith("_counts"): weight = None #events.nom
-                        #else: weights = weights_obj_base_for_kinematic_syst.partial_weight(include=["norm"]) # For testing
-                        #else: weights = weights_obj_base_for_kinematic_syst.weight(None) # For testing
+                    # Skip filling if this variable is not relevant for this selection
+                    if (dense_axis_name in exclude_var_dict) and (sr_cat in exclude_var_dict[dense_axis_name]): continue
 
-                        # Make the cuts mask
-                        cuts_lst = [sr_cat] 
-                        #if isData: cuts_lst.append("is_good_lumi") # Apply golden json requirements if this is data
-                        all_cuts_mask = None #selections.all(*cuts_lst)
+                    # If this is a counts hist, forget the weights and just fill with unit weights
+                    if isData or dense_axis_name.endswith("_counts"): weight = None #events.nom
+                    #else: weights = weights_obj_base_for_kinematic_syst.partial_weight(include=["norm"]) # For testing
+                    #else: weights = weights_obj_base_for_kinematic_syst.weight(None) # For testing
 
-                        masked_weights = None
-                        cache_key = tuple(cuts_lst + [wgt_fluct])
-                        # Do not recalculate the mask if we've already computed it
-                        if cache_key not in masks_cache:
-                            weights_cache[cache_key] = None if weight is None else weight[cached_masks["lep_chan_lst"][sr_cat]]
-                        masked_weights = weights_cache[cache_key]
-                            
-                        #run = events.run[all_cuts_mask]
-                        #luminosityBlock = events.luminosityBlock[all_cuts_mask]
-                        #event = events.event[all_cuts_mask]
-                        #w = weights[all_cuts_mask]
-                        #if dense_axis_name == "njets":
-                        #    print("\nSTARTPRINT")
-                        #    for i,j in enumerate(w):
-                        #        out_str = f"PRINTTAG {i} {dense_axis_name} {year} {sr_cat} {event[i]} {run[i]} {luminosityBlock[i]} {w[i]}"
-                        #        print(out_str,file=sys.stderr,flush=True)
-                        #    print("ENDPRINT\n")
-                        #print("\ndense_axis_name",dense_axis_name)
-                        #print("sr_cat",sr_cat)
-                        #print("dense_axis_vals[all_cuts_mask]",dense_axis_vals[all_cuts_mask])
-                        #print("end")
+                    # Make the cuts mask
+                    cuts_lst = [sr_cat] 
+                    #if isData: cuts_lst.append("is_good_lumi") # Apply golden json requirements if this is data
+                    all_cuts_mask = None #selections.all(*cuts_lst)
+                    
+                    masked_weights = []
+                    cache_key = tuple(cuts_lst + [wgt_fluct])
+                    # Do not recalculate the mask if we've already computed it
+                    # Loop over weight fluctuations
+                    for wgt_fluct in wgt_var_lst:
+                        
+                        # Get the appropriate weight fluctuation
+                        if (wgt_fluct == "nominal") or (wgt_fluct in obj_corr_syst_var_list):
+                            # In the case of "nominal", no weight systematic variation is used
+                            weight = weights_obj_base_for_kinematic_syst.weight(None)
+                        else:
+                            # Otherwise get the weight from the Weights object
+                            if wgt_fluct not in weights_cache:
+                                weights_cache[wgt_fluct] = weights_obj_base_for_kinematic_syst.weight(wgt_fluct)
+                            weight = weights_cache[wgt_fluct]
+                                             
+                        if cache_key not in masked_weights_cache:
+                            masked_weights_cache[cache_key] = None if weight is None else weight[cached_masks["lep_chan_lst"][sr_cat]]
+                        masked_weights.append(masked_weights_cache[cache_key])
+                        
+                    #run = events.run[all_cuts_mask]
+                    #luminosityBlock = events.luminosityBlock[all_cuts_mask]
+                    #event = events.event[all_cuts_mask]
+                    #w = weights[all_cuts_mask]
+                    #if dense_axis_name == "njets":
+                    #    print("\nSTARTPRINT")
+                    #    for i,j in enumerate(w):
+                    #        out_str = f"PRINTTAG {i} {dense_axis_name} {year} {sr_cat} {event[i]} {run[i]} {luminosityBlock[i]} {w[i]}"
+                    #        print(out_str,file=sys.stderr,flush=True)
+                    #    print("ENDPRINT\n")
+                    #print("\ndense_axis_name",dense_axis_name)
+                    #print("sr_cat",sr_cat)
+                    #print("dense_axis_vals[all_cuts_mask]",dense_axis_vals[all_cuts_mask])
+                    #print("end")
 
-                        # Fill the histos
-                        axes_fill_info_dict = {
-                            dense_axis_name : dense_variables_array_with_cuts["lep_chan_lst"][sr_cat][dense_axis_name],
-                            "weight"        : masked_weights,
-                            "process"       : histAxisName,
-                            "category"      : sr_cat,
-                            "systematic"    : wgt_fluct,
-                        }
-                        hout[dense_axis_name].fill(**axes_fill_info_dict)
-                    #print("growth after regions loop")
-                    #objgraph.show_growth(limit=50, shortnames=False)
-                    #objgraph.show_refs(
-                    #    objgraph.by_type("hist.dask.hist.Hist"),
-                    #    filename="dask-hist-refs.png",
-                    #)
-                    #objgraph.show_backrefs(
-		    #   objgraph.by_type("hist.dask.hist.Hist"),
-                    #    filename="dask-hist-backrefs.png",
-                    #)
+                    # Fill the histos
+                    axes_fill_info_dict = {
+                        dense_axis_name : dense_variables_array_with_cuts["lep_chan_lst"][sr_cat][dense_axis_name],
+                        "weight"        : tuple(masked_weights),
+                        "process"       : histAxisName,
+                        "category"      : sr_cat,
+                        "systematic"    : tuple(wgt_var_lst),
+                    }
+                    hout[dense_axis_name].fill(**axes_fill_info_dict)
+                #print("growth after regions loop")
+                #objgraph.show_growth(limit=50, shortnames=False)
+                #objgraph.show_refs(
+                #    objgraph.by_type("hist.dask.hist.Hist"),
+                #    filename="dask-hist-refs.png",
+                #)
+                #objgraph.show_backrefs(
+		#   objgraph.by_type("hist.dask.hist.Hist"),
+                #    filename="dask-hist-backrefs.png",
+                #)
                         
 
                     #sys.exit()
-        print(sum(len(hout[key].dask.layers) for key in hout))
-        import dask
-        print(len(dask.optimize(hout)[0]["met"].dask.layers))
         return hout
 
     def postprocess(self, accumulator):

@@ -352,7 +352,7 @@ if __name__ == '__main__':
             processor_instance,
             dataset_runnable,
             uproot_options={"allow_read_errors_with_report": True},
-            parallelize_with_dask=False,
+            parallelize_with_dask=True,
         )
 
         print("DONE with apply to fileset")
