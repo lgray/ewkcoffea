@@ -840,7 +840,8 @@ class AnalysisProcessor(processor.ProcessorABC):
             hout = {} # This is what we'll eventually return
             masks_cache = {}
             weights_cache = {} # work around for Weights object making a new task graph each time!
-            masked_weights_cache = {} # ditto            
+            masked_weights_cache = {} # ditto
+            masked_weights_tuple_cache = {} # ditto 
             #print("growth before histogram loop")
             #objgraph.show_growth(limit=50, shortnames=False)
             for dense_axis_name, dense_axis_vals in dense_variables_dict.items():
@@ -891,24 +892,30 @@ class AnalysisProcessor(processor.ProcessorABC):
                     all_cuts_mask = None #selections.all(*cuts_lst)
                     
                     masked_weights = []
-                    cache_key = tuple(cuts_lst + [wgt_fluct])
+                    cache_key = tuple(cuts_lst + wgt_var_lst)
                     # Do not recalculate the mask if we've already computed it
                     # Loop over weight fluctuations
-                    for wgt_fluct in wgt_var_lst:
+
+                    if cache_key not in masked_weights_tuple_cache:
+                        weights_list = []
+                        for wgt_fluct in wgt_var_lst:
                         
-                        # Get the appropriate weight fluctuation
-                        if (wgt_fluct == "nominal") or (wgt_fluct in obj_corr_syst_var_list):
-                            # In the case of "nominal", no weight systematic variation is used
-                            weight = weights_obj_base_for_kinematic_syst.weight(None)
-                        else:
-                            # Otherwise get the weight from the Weights object
-                            if wgt_fluct not in weights_cache:
-                                weights_cache[wgt_fluct] = weights_obj_base_for_kinematic_syst.weight(wgt_fluct)
-                            weight = weights_cache[wgt_fluct]
-                                             
-                        if cache_key not in masked_weights_cache:
-                            masked_weights_cache[cache_key] = None if weight is None else weight[cached_masks["lep_chan_lst"][sr_cat]]
-                        masked_weights.append(masked_weights_cache[cache_key])
+                            # Get the appropriate weight fluctuation
+                            if (wgt_fluct == "nominal") or (wgt_fluct in obj_corr_syst_var_list):
+                                # In the case of "nominal", no weight systematic variation is used
+                                weight = weights_obj_base_for_kinematic_syst.weight(None)
+                            else:
+                                # Otherwise get the weight from the Weights object
+                                if wgt_fluct not in weights_cache:
+                                    weights_cache[wgt_fluct] = weights_obj_base_for_kinematic_syst.weight(wgt_fluct)
+                                weight = weights_cache[wgt_fluct]
+                            single_cache_key = tuple(cuts_lst + [wgt_fluct])                 
+                            if single_cache_key not in masked_weights_cache:
+                                masked_weights_cache[single_cache_key] = None if weight is None else weight[cached_masks["lep_chan_lst"][sr_cat]]
+                            weights_list.append(masked_weights_cache[single_cache_key])
+
+                        masked_weights_tuple_cache[cache_key] = weights_list
+                    mask_weights = masked_weights_tuple_cache[cache_key]
                         
                     #run = events.run[all_cuts_mask]
                     #luminosityBlock = events.luminosityBlock[all_cuts_mask]
@@ -928,7 +935,7 @@ class AnalysisProcessor(processor.ProcessorABC):
                     # Fill the histos
                     axes_fill_info_dict = {
                         dense_axis_name : dense_variables_array_with_cuts["lep_chan_lst"][sr_cat][dense_axis_name],
-                        "weight"        : tuple(masked_weights),
+                        "weight"        : tuple(None for _ in range(len(masked_weights))) if dense_axis_name.endswith("_counts") else tuple(masked_weights),
                         "process"       : histAxisName,
                         "category"      : sr_cat,
                         "systematic"    : tuple(wgt_var_lst),
@@ -946,7 +953,8 @@ class AnalysisProcessor(processor.ProcessorABC):
                 #)
                         
 
-                    #sys.exit()
+                #sys.exit()
+        print(len(hout["met"].dask.layers))
         return hout
 
     def postprocess(self, accumulator):
